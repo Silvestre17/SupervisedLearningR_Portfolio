@@ -1,0 +1,307 @@
+---
+title: "MAS | Aula Prática 4 - Classificador Naïve Bayes "
+author: "André Silvestre Nº104532 CDB1"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Exemplo sobre dataset `Iris` (com preditores quantitativos)
+
+- Margarida G. M. S. Cardoso
+- 17 de fevereiro, 2023
+
+# PL4 Goal:
+
+\textcolor{lightgray}{To use the Naive Bayes classifier considering an example with quantitative predictors.}
+
+- Usar o classificador Naive Bayes considerando um exemplo com preditores quantitativos.
+
+```{r message=FALSE, warning=FALSE}
+# Bibliotecas
+rm(list=ls(all=TRUE)) # First remove everything! 
+library(psych)        # to provide descriptive statistics
+library(ggplot2)      # to provide graphics 
+library(lsr)          # for Eta
+library(e1071)        # classification with Naïve Bayes
+library(Metrics)      # used to provide classification metrics
+```
+
+
+\newpage
+
+# 1) The iris data set
+
+Data set by R. Fisher (1936) The use of multiple measurements in taxonomic problems.Annals of Eugenics. 7 (2): 179-188.
+
+### TARGET:
+
+- **Species:** (setosa, versicolor , virginica)
+
+### PREDICTORS: 
+
+- **Sepal.Length** 
+
+- **Sepal.Width**
+
+- **Petal.Length**
+
+- **Petal.Width** 
+
+---
+
+## 1.a)	Get the iris data set
+
+```{r}
+data(iris)
+names(iris)
+dim(iris)
+```
+
+## 1.b)	Iris descriptive statistics
+
+```{r}
+summary(iris)
+
+#
+attach(iris)
+
+#continuing descriptives (with "psych")
+describe(iris[,1:4])
+
+# describe predictors for each Species
+describe(iris[Species=="setosa",-5])
+describe(iris[Species=="versicolor",-5])
+describe(iris[Species=="virginica",-5])
+```
+
+## 1.c)	Exploring correlations between target and predictors
+
+```{r out.width='48%', fig.show='hold', fig.align='center'}
+# Eta_SL
+anova_ <- aov(Sepal.Length~ Species, iris) 
+Eta_SL <- sqrt(etaSquared(anova_ )[,1])
+Eta_SL
+
+# Eta_SW
+anova_ <- aov(Sepal.Width ~ Species, iris) 
+Eta_SW <- sqrt(etaSquared(anova_ )[,1])
+Eta_SW
+
+# Eta_PL
+anova_ <- aov(Petal.Length~ Species, iris)
+Eta_PL <- sqrt(etaSquared(anova_ )[,1])
+Eta_PL
+
+# Eta_PW
+anova_ <- aov(Petal.Width ~ Species, iris) 
+Eta_PW <- sqrt(etaSquared(anova_ )[,1])
+Eta_PW
+
+# correlations between predictors
+round(cor(iris[,1:4]),2)
+
+# some graphics
+c <- ggplot(iris, aes(x=Petal.Length, fill=Species, color=Species)) + 
+geom_histogram(binwidth = 1) + 
+labs(title="Petal.Length distribution by species")
+c + theme_bw()
+
+#
+p <- ggplot(iris, aes(x=Sepal.Width, fill=Species, color=Species)) + 
+geom_histogram(binwidth = 0.5) + 
+  labs(title="Sepal.Width distribution by species")
+p + theme_bw()
+```
+
+
+\newpage
+
+# 2) Performing classification on iris species
+
+## 2.a)	Naive bayes classifier
+
+This classifier assumes independence of predictors (!) and considers $P(C|X_1..X_p)$ is proportional to Produt( $P(X_j|C)) \times P(C)$ (sample estimates are used)
+
+```{r}
+x <- iris[,c(2,3)] 
+y <- iris$Species
+nb.iris<-naiveBayes(x, y) 
+nb.iris
+
+#str(nb.iris)
+nb.iris$tables$Sepal.Width[1,2]
+
+# Naive Bayes results include, for each numeric predictor, a table giving 
+# the mean and standard deviation of the predictor within each target class
+```
+
+## 2.b) Naive Bayes based predictions
+
+```{r}
+#predicted probabilities
+prob.nb_y <- predict(nb.iris,iris,type = "raw") 
+head(prob.nb_y)
+
+# predicted classes
+pred_y <- predict(nb.iris,iris )  # default is type="class"
+head(pred_y)
+
+#
+iris_pred<-cbind(iris[,c(2,3,5)],prob.nb_y,pred_y) 
+iris_pred[ c(1:3,50:53,100:103),]
+```
+
+## 2.c)	Naive bayes performance
+
+```{r}
+#
+(confusion_mat<-table(iris$Species,pred_y))
+
+#accuracy
+acc <- accuracy(iris$Species,pred_y) 
+acc
+
+#classification error
+ce(iris$Species,pred_y) 
+
+#observations with classification errors
+iris_pred[which(iris$Species!=pred_y),]
+
+# majority class frequency
+default_p<-max(mean(Species == "setosa"), 
+               mean(Species == "virginica"), 
+               mean(Species == "versicolor"))
+default_p
+
+# Huberty
+(Huberty<-(acc-default_p)/(1-default_p))
+
+```
+
+
+\newpage
+
+# Exercícios
+
+\textcolor{lightgray}{**EXERCISE 1:** considering the nb.iris model, present the calculations of probabilities of belonging to each target class for observation 53 of the iris data set}
+
+- Considerando o modelo nb.iris, apresentar os cálculos das probabilidades de pertencer a cada classe-alvo para observação 53 do conjunto de dados da íris
+
+- Primeiro, precisamos extrair as médias e os desvios-padrão de cada variável preditora para cada classe-alvo. Em seguida, usamos a fórmula do classificador Naive Bayes para calcular as probabilidades de pertencer a cada classe-alvo, dada a observação 53.
+
+```{r}
+# selecionar as tabelas de probabilidade correspondentes às variáveis usadas
+tabela_sw <- nb.iris$tables$Sepal.Width
+tabela_pl <- nb.iris$tables$Petal.Length
+
+# selecionar as observações a serem classificadas
+obs_53 <- iris[53, c("Sepal.Width", "Petal.Length")]
+
+# calcular as probabilidades condicionais para cada classe usando a distribuição normal
+prob_setosa <- dnorm(obs_53[1], tabela_sw[1, 1], tabela_sw[1, 2]) * dnorm(obs_53[2], tabela_pl[1, 1], tabela_pl[1, 2]) * nb.iris$apriori[1]
+
+prob_versicolor <- dnorm(obs_53[1], tabela_sw[2, 1], tabela_sw[2, 2]) * 
+                   dnorm(obs_53[2], tabela_pl[2, 1], tabela_pl[2, 2]) * nb.iris$apriori[2]
+
+prob_virginica <- dnorm(obs_53[1], tabela_sw[3, 1], tabela_sw[3, 2]) * 
+                  dnorm(obs_53[2], tabela_pl[3, 1], tabela_pl[3, 2]) * nb.iris$apriori[3]
+
+# normalizar as probabilidades
+probs <- c(prob_setosa, prob_versicolor, prob_virginica) / sum(c(prob_setosa, prob_versicolor, prob_virginica))
+
+# exibir as probabilidades de pertencer a cada classe
+probs
+```
+
+
+---
+
+
+
+
+
+
+
+
+\textcolor{lightgray}{**EXERCISE 2:** to evaluate the Naïve Bayes performance on the iris data set, perform train-test approach using a target based stratified sample and 0.65 of observations for training}
+
+- Para avaliar o desempenho da Naïve Bayes no conjunto de dados da íris, realizar uma abordagem de teste de comboio utilizando uma amostra estratificada baseada no alvo e 0,65 de observações para a formação
+
+
+```{r}
+# Load the caret package for data partitioning and model training
+library(caret)
+
+# Create a stratified sample to ensure equal representation of each class 
+# in both the training and test sets
+set.seed(777)
+ind_train <- c(sample(1:50,35), sample(51:100,35), sample(101:150,35))
+iris_train <- iris[ind_train,] 
+iris_test <- iris[-ind_train,] 
+
+# Train the Naïve Bayes model using the training set
+nb_model <- train(Species ~ ., data = iris_train, method = "nb")
+
+# Predict the target variable for the test set using the trained model
+nb_pred <- predict(nb_model, newdata = iris_test)
+
+# Evaluate the performance of the model using confusion matrix and classification report
+confusionMatrix(nb_pred, iris_test$Species)
+```
+
+---
+
+
+
+
+
+
+
+
+
+
+\textcolor{lightgray}{**EXERCISE 3:** 
+- write the file "iris.csv"; 
+- edit this file and remove the Sepal.Length value from observation 1 and the Species value from observation 2; 
+- rename this file as $iris_2.csv$ and try to implement the same analysis (i.e. steps $1)$ and $2)$ conducted for iris);
+- report the problems found.
+Eventually, repeat the analysis after eliminating the rows with missing observations}
+
+```{r}
+# - write the file "iris.csv"; 
+write.csv(iris, file = "iris.csv", row.names = FALSE)
+```
+
+
+```{r}
+# - edit this file and remove the Sepal.Length value from observation 1 
+# and the Species value from observation 2; 
+# - rename this file as $iris_2.csv$ and try to implement the same analysis 
+# (i.e. steps $1)$ and $2)$ conducted for iris);
+# - report the problems found.
+
+iris_2 <- read.csv("iris.csv") 
+iris_2$Sepal.Length[1] <- NA             # set Sepal.Length in row 1 to NA
+iris_2$Species[2] <- NA                  # set Species in row 2 to NA
+write.csv(iris_2, file = "iris_2.csv", row.names = FALSE)
+
+# Error in createDataPartition(iris_2$Species, p = 0.65, list = FALSE) : 
+#  The data contains more levels than the partitioning variable. 
+
+# Este erro ocorre pq há NAs e ent o R não consegue dividir o dataset
+```
+
+```{r}
+iris_2 <- read.csv("iris_2.csv")    # read in the modified CSV file
+iris_2 <- na.omit(iris_2)           # remove rows with missing values
+
+set.seed(123)
+library(caret)
+trainIndex <- createDataPartition(iris_2$Species, p = 0.65, list = FALSE)
+train <- iris_2[trainIndex, ]
+test <- iris_2[-trainIndex, ]
+```
+

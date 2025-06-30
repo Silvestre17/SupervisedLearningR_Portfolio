@@ -1,0 +1,192 @@
+---
+title: "MAS | Aula Prática 3 - Exemplos de Métricas de Classificação"
+author: "André Silvestre Nº104532 CDB1"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Exemplo de Naïve Bayes sobre o data set `Play`.
+
+- Margarida G. M. S. Cardoso
+- 14 de fevereiro, 2023
+
+# PL3 Goal:
+
+\textcolor{lightgray}{To use diverse metrics to evaluate classification results and introduce the Naive Bayes classifier.}
+
+- Utilizar métricas diversas para avaliar os resultados da classificação e introduzir o classificador Naive Bayes.
+
+```{r message=FALSE, warning=FALSE}
+# Bibliotecas
+rm(list=ls(all=TRUE)) # First remove everything! 
+library(lsr)          # provides Cramer's V measure of association 
+library(e1071)        # for classification with Naive Bayes
+library(caret)        # to provide folds for cross-validation
+```
+
+
+\newpage
+
+# 1) The Play data set
+
+The Play data set includes 14 observations that illustrate the influence of weather conditions on the decision to play a game outdoors (https://cis.temple.edu/~giorgio/cis587/readings/id3-c45.html).
+
+The data set used in classes, `Play_complete.csv`, includes an additional variable (“play_duration”) and the temperature is in degrees Celsius.
+
+---
+
+## 1. a)
+
+```{r}
+Play <- read.csv("Play_complete.csv", header=TRUE, dec=".", stringsAsFactors =TRUE)
+Play
+summary(Play)
+```
+
+## 1. b) The target variable `PLAY` and its correlations with qualitative predictors
+
+```{r out.width='48%', fig.show='hold', fig.align='center'}
+attach(Play)
+
+t_OP <- table(OUTLOOK,PLAY)
+y <- prop.table(t_OP, 2)
+barplot(y,beside=TRUE,legend.text = TRUE,args.legend = list(x = "topright", bty = "n"))
+
+#
+t_WP <- table(WIND,PLAY) 
+y <- prop.table(t_WP, 2)
+barplot(y,beside=TRUE,legend.text = TRUE, args.legend = list(x = "topright", bty = "n"))
+```
+
+
+
+```{r}
+# Cramer's V to measure the association between qualitative predictors an d target
+cramersV(OUTLOOK,PLAY)
+cramersV(WIND,PLAY)
+```
+
+
+\newpage
+
+# 2) Performing classification on Play
+
+## 2.a) Naive bayes classifier
+
+This classifier assumes independence of predictors (!) and considers $P(C|X_1..X_p)$ is proportional to Produt( $P(X_j|C)) \times P(C)$ (sample estimates are used)
+
+```{r}
+x <- Play[,c(1,3)] 
+y <- Play[,6]
+nb.Play<-naiveBayes(x, y)
+
+# For each categorical predictor, Naive Bayes results include a table giving, 
+# for each attribute level, the conditional probabilities given the target class.
+
+nb.Play
+```
+
+## 2.b) Naive Bayes based predictions
+
+```{r}
+# Predicted probabilities
+(prob.nb_y <- predict(nb.Play,Play,type = "raw"))
+
+# Predicted classes
+apply(prob.nb_y, 1, which.max)
+
+#
+(pred.nb_y <- predict(nb.Play,Play)) # default type is class
+
+# data set with predictors, target and predicted values
+(Play_pred<-cbind(Play[,c(1,3,6)],prob.nb_y,pred.nb_y))
+```
+
+\newpage
+
+# 3) Evaluating Naive bayes performance using diverse metrics
+
+## 3.1) reate the data partition (10-fold)
+
+```{r}
+confusion_mat <- table(Play$PLAY,pred.nb_y)
+confusion_mat
+
+# it maybe useful to rearrange categories so that the "positive" event co mes first
+(confusion_mat<-confusion_mat[c(2,1),c(2,1)])
+
+# the observations incorrectly classified
+which(Play$PLAY!=pred.nb_y)
+
+# accuracy
+(accuracy<-sum(diag(confusion_mat))/sum(confusion_mat))
+
+# or
+(prop.table(confusion_mat))
+
+(accuracy<-sum(diag(prop.table(confusion_mat))))
+
+# Classification Error = 1-accuracy
+(ce<- 1-accuracy)
+
+# Huberty index
+default_p <- max(mean(PLAY == "Don't Play"), mean(PLAY == "Play"))# majorit y class frequency
+(Huberty<-(accuracy-default_p)/(1-default_p))
+```
+
+
+```{r}
+# NOTE: that in order to define the following metrics one has to determine which
+# category is the "positive" event. Thus, considering "Play" as "positive":
+
+# Recall or Sensitivity is TP/(TP+FN):
+(recall<- confusion_mat[1,1]/sum(confusion_mat[1,]))
+
+# Precision is TP/(TP+FP):
+(precision <-confusion_mat[1,1]/sum(confusion_mat[,1]))
+
+# F score is defined as 2 * precision * recall/(precision+recall):
+(Fscore<-2*precision*recall/(precision+recall))
+
+# Specificity TN/(FP+TN):
+(specificity <-confusion_mat[2,2]/sum(confusion_mat[2,]))
+
+# or, using "caret" (with many more metrics...)
+levels(pred.nb_y)
+levels(Play$PLAY)
+confusionMatrix(pred.nb_y, Play$PLAY, positive = "Play")
+```
+
+\newpage
+
+# Exercícios
+
+\textcolor{lightgray}{**EXERCISE 1:** Interpret the obtained metrics}
+
+- **Interpretar as métricas obtidas**
+
+> ***Precision***: $80\%$ de observações corretamente classificadas face ao total de observações que preveem como positivos (`Play`)
+
+> ***Recall***: $88.9\%$ de observações corretamente classificadas face ao total de observações positivas 
+
+> ***Specifity***: $60\%$ de observações verdadeiras negativas que foram corretamente identificados pelo modelo em relação ao número total de negativos.
+
+> ***F1-Score***: $84.2\%$ é a média harmônica entre precisão e sensibilidade.
+
+
+
+---
+
+\textcolor{lightgray}{**EXERCISE 2:** Repeat the evaluation of results on all data set using “Don’t Play” as “positive”}
+
+
+- Repita a avaliação dos resultados em todos os conjuntos de dados utilizando ***Don't Play*** como ***positivo***
+
+```{r}
+confusionMatrix(pred.nb_y, Play$PLAY, positive = "Don't Play")
+```
+
+

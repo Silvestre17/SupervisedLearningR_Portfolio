@@ -1,0 +1,65 @@
+---
+title: "Quiz6"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  pdf_document: default
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Começamos por importar e observar um sumário dos dados.
+
+```{r}
+# Import da Base de Dados
+dados <- read.csv("Play_complete.csv",
+                  header=TRUE, dec=".", 
+                  stringsAsFactors = TRUE) 
+summary(dados) 
+```
+
+---
+
+## Enunciado
+
+Recorra ao commando `dummy_cols` de `library(fastDummies)` para substituir os preditores qualitativos de **Play** por variáveis auxiliares dummy (exclua uma dummy por preditor). 
+
+Proceda, de seguida, à estandardização de todos os preditores (pela sua média e desvio padrão). 
+
+---
+
+\newpage
+
+### Script
+
+```{r}
+library(fastDummies)
+
+# Codificação em Variáveis Dummy para os preditores qualitativos
+play_dummy <- dummy_cols(dados,
+                         select_column=c("OUTLOOK","WIND"), 
+                         remove_first_dummy = TRUE,
+                         remove_selected_columns = TRUE)
+
+# Eliminar variáveis qualitativas originais
+play_dummy <- play_dummy[,c(1,2,5,6,7,3,4)] 
+play_dummy
+```
+
+
+```{r}
+# Estandardização dos Preditores
+play_dummy_s <- play_dummy
+
+# Função de Estandardização - Média = 0 e DP = 1
+standardização <- function(x){ 
+  return ((x -mean(x)) / sd(x))
+  } 
+
+# Aplicar às var. preditivas (excluir as alvo)
+play_dummy_s[,1:5] <- sapply(play_dummy[,1:5],standardização) 
+play_dummy_s
+```
+

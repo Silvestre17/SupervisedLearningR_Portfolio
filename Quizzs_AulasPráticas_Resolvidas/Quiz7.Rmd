@@ -1,0 +1,49 @@
+---
+title: "Quiz7"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  pdf_document: default
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Começamos por importar e observar um sumário dos dados.
+
+```{r}
+# Import da Base de Dados
+dados <- read.csv("Play_complete.csv",header=TRUE, dec=".", stringsAsFactors = TRUE)
+summary(dados)
+```
+
+---
+
+## Enunciado
+
+Considere as seguintes estimativas dos coeficientes associados a um modelo de regressão logística para prever PLAY com base no preditor OUTLOOK (tendo Don’t play como classe de referência): 
+
+- Intercept= $0.4054651$
+- Coef de OUTLOOKcloudy= $18.1606034$
+- Coef. de OUTLOOKsunny = $-0.8109302$
+
+Determine (apresentando os seus cálculos) a **probabilidade de jogar** para a observação $1$ (OUTLOOK=sunny)$*$ e o correspondente o **Deviance residual** $**$
+
+$$* \; \widehat{\pi}(x)=\frac{1}{1+\exp \left\{-\left[\widehat{\beta}_0+\widehat{\beta}_1 x_1+\widehat{\beta}_2 x_2\right]\right\}}=\frac{\exp \left\{\widehat{\beta}_0+\widehat{\beta}_1 x_1+\widehat{\beta}_2 x_2\right\}}{1+\exp \left\{\widehat{\beta}_0+\widehat{\beta}_1 x_1+\widehat{\beta}_2 x_2\right\}}$$
+
+
+$$**\; \operatorname{resid}\left(y_i, \hat{y}_i\right)=\operatorname{sign}\left(y_i-\hat{y}_i\right)\left\{2\left[y_i \ln \left(\frac{y_i}{\hat{y}_i}\right)+\left(1-y_i\right) \ln \left(\frac{1-y_i}{1-\hat{y}_i}\right)\right]\right\}^{1/2}$$
+---
+
+### Script
+
+```{r}
+# Probabilidade de Jogar - Estimativa ^y_i 
+prob_play <- 1/(1+exp(-(0.4054651-0.8109302)))
+prob_play
+
+# Deviance residual
+sqrt(2*log(1/prob_play, base=exp(1)))
+```
+

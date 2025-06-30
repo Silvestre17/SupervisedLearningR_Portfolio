@@ -1,0 +1,241 @@
+--- 
+title: "MAS: Exame 2ª Época - Parte II (Prática do R)"
+author: "André Filipe Gomes Silvestre"
+date: "20 de junho, 2023"
+output: word_document
+---
+
+# Nota:
+Deve efetuar todos os Save com "Save with encoding UTF-8" de modo a manter palavras acentuadas e caracteres especiais**
+
+
+```{r message=FALSE, warning=FALSE}
+# Remover tudo!
+rm(list=ls(all=TRUE))# Remove everything!
+# Incluir as libraries de que necessita
+
+library(HSAUR2)# para obter dados CHFLS
+library(psych)
+library(lsr)
+library(nnet) # for Multinomial Logistic Regression
+library(tree)
+```
+
+# 1.	Os dados CHFLS 
+
+## 1.1) Leitura dos dados CHFLS  
+
+```{r}
+data("CHFLS")
+
+# O estudo realizado na China sobre Saúde e Vida Familiar efectuou uma amostragem sobre aldeias e bairros urbanos de forma a representar toda a gama geográfica e socioeconômica da China contemporânea.
+#NOTA: para mais detalhes sobre este data set consulte https://search.r-project.org/CRAN/refmans/HSAUR2/html/CHFLS.html
+
+dim(CHFLS)
+str(CHFLS)
+
+# NOTA: usamos factor() para considerar como tal a variável R_happy, já que não iremos, nesta análise, considerar a sua ordem
+str(CHFLS$R_happy)
+CHFLS$R_happy<- factor(CHFLS$R_happy , ordered = FALSE)
+str(CHFLS$R_happy)
+```
+
+## 1.2) [1.5 valores] Sumário de CHFLS e apresentação  tabela de frequências relativas (com 3 c.d.) da variável R_happy
+
+```{r}
+# Sumário dos dados CHFLS
+summary(CHFLS)
+
+# Tabela de frequências relativas
+round(prop.table(table(CHFLS$R_happy)), 3)
+```
+
+## 1.3) [1.5 valores] Apresentação, para as variáveis  R_income e A_income, dos valores mínimo, máximo, média e desvio padrão, assimetria e curtose (apresentados por esta ordem).
+
+```{r}
+# Mínimo, máximo, média e desvio padrão, assimetria e curtose das variáveis R_income e A_income
+describe(CHFLS[,c("R_income", "A_income")])[c(8,9,3,4,11,12)]
+```
+
+
+## 1.4) [1 valor] Completação das frases seguintes em comentário do script: 
+
+```{r}
+#Os dados CHFLS são compostos por ________ observações e por ________ variáveis; a média da variável A_income é  ______; o enviesamento de R_income é _______ (inferior/superior) ao de A_income.
+
+# 1 - 1534      nrow(CHFLS)
+# 2 - 10        ncol(CHFLS)
+# 3 - 986.69    round(mean(CHFLS$A_income), 2)
+# 4 - superior  (pq skew maior)
+```
+
+Os dados CHFLS são compostos por **`r nrow(CHFLS)`** observações e por **`r ncol(CHFLS)`** variáveis; a média da variável A_income é  **`r round(mean(CHFLS$A_income), 2)`**; o enviesamento de R_income é **superior** ao de A_income.
+
+\newpage
+
+# 2. Aprendizagem, sobre os dados CHFLS de Regressão Logística (considerando R_income e um preditor qualitativo) para prever R_happy e avaliação do seu desempenho
+
+## 2.1) [2 valores] Escolha do preditor qualitativo mediante associação com o alvo
+
+```{r message=FALSE, warning=FALSE}
+# Medir a associação entre preditores qualitativos R_region, R_edu, R_health e A_edu e o target R_happy
+(cramersV(CHFLS$R_region,CHFLS$R_happy))
+(cramersV(CHFLS$R_edu,CHFLS$R_happy))
+(cramersV(CHFLS$R_health,CHFLS$R_happy))
+(cramersV(CHFLS$A_edu,CHFLS$R_happy))
+```
+
+> Com base nos valores de associação de *V de Cramer* obtidos, a variável qualitativa que mais se correlaciona com o *target* é **R_health*, pelo que escolho esta variável como 2º preditor para o modelo.
+
+## 2.2) [2 valores] Obtenção do modelo considerando "Very unhappy" como categoria de referência; sumário do modelo obtido.
+
+```{r}
+# Considerando "Very unhappy" como categoria de referência
+CHFLS$R_happy <- relevel(CHFLS$R_happy, ref = "Very unhappy")
+
+# Obtendo o modelo de regressão logística multinomial
+rlog.R_happy <- multinom(R_happy ~ R_income + R_health, data = CHFLS)
+
+# Obtendo o sumário do modelo
+summary(rlog.R_happy)
+```
+
+## 2.3) [3 valores] Apresentação da Confusion matrix e dos correspondentes número e percentagem de casos corretamente classificados; estimativas das probabilidades de pertença às classes alvo associadas às primeiras 6 observações de CHFLS
+
+```{r}
+# Obtendo as previsões do modelo
+predictions <- predict(rlog.R_happy, CHFLS, type = "class")
+
+# Matriz de confusão
+(confusion_matrix <- table(CHFLS$R_happy, predictions))
+
+# Número de casos corretamente classificados
+(correctly_classified <- sum(diag(confusion_matrix)))
+
+# Percentagem de casos corretamente classificados
+(percentage_correct <- correctly_classified / sum(confusion_matrix) * 100)
+
+# Apresentando o número de casos corretamente classificados e a percentagem
+cat("Número de casos corretamente classificados:", round(correctly_classified,2), "\n")
+cat("Percentagem de casos corretamente classificados:", round(percentage_correct,2), "%\n")
+
+# Estimativas das probabilidades de pertença às classes alvo para as primeiras 6 observações
+probabilities <- predict(rlog.R_happy, CHFLS, type = "probs")
+head(probabilities, 6)
+```
+
+## 2.4) [1 valor] Completação das frases seguintes em comentário do script 
+
+```{r}
+
+# A accuracy obtida pelo modelo de regressão logística multinomial é ________; o total de observações corretamente classificadas é _______ (número de observações); a probabilidade da primeira observação pertencer à classe alvo “Very happy”, estimada pelo modelo, é _____________; a sexta observação é classificada em ________.
+
+# 1 - round(correctly_classified/nrow(CHFLS),2)
+# 2 - correctly_classified
+# 3 - 0.14230716
+# 4 - Somewhat happy
+```
+
+A accuracy obtida pelo modelo de regressão logística multinomial é **`r round(correctly_classified/nrow(CHFLS),2)`**; o total de observações corretamente classificadas é **`r correctly_classified`** ; a probabilidade da primeira observação pertencer à classe alvo “Very happy”, estimada pelo modelo, é **0.14230716**; a sexta observação é classificada em ***Somewhat happy***.
+
+\newpage
+
+
+# 3. Aprendizagem, de uma Árvore de Classificação para prever R_happy (usando todos os preditores disponíveis) e avaliação do seu desempenho
+
+## 3.1) [1 valor] Divisão dos dados em amostra de treino (70%) e de teste (30%) usando set.seed(123) e apresentação de tabela de frequências relativas da variável R_happy em cada amostra
+
+```{r}
+#####
+# Renomear os níveis de R_happy para facilitar a visualização da árvore
+levels(CHFLS$R_happy)
+levels(CHFLS$R_happy)<-c("v.unhappy","n.t.happy","s.happy","v.happy")
+#####
+
+# Definir o set.seed para permitir reprodutibilidade dos resultados
+set.seed(123)
+
+# Divisão em Conjunto Treino/Teste (70/30)
+ind_train <- sample(nrow(CHFLS),0.7*nrow(CHFLS)) 
+
+# Conjunto Treino (CHFLS_train)
+CHFLS_train <- CHFLS[ind_train,] 
+paste("O Conjunto de Treino tem", nrow(CHFLS_train),"observações.")
+
+# Tabela de frequências relativas da variável R_happy - Conjunto de Treino
+prop.table(table(CHFLS_train$R_happy))
+
+# Conjunto Teste (CHFLS_test)
+CHFLS_test <- CHFLS[-ind_train,] 
+paste("O Conjunto de Teste tem", nrow(CHFLS_test),"observações.")
+
+# Tabela de frequências relativas da variável R_happy - Conjunto de Teste
+prop.table(table(CHFLS_test$R_happy))
+```
+
+## 3.2) [2 valores] Considere a árvore ctree_large.CHFLS. obtenha (a partir desta árvore, sobre a amostra de treino) uma árvore podada com 15 nós folha e apresente-a em formato lista indentada e o summary correspondente
+
+```{r}
+ctree_large.CHFLS<-tree(R_happy~. ,
+                        data=CHFLS_train, 
+                        control=tree.control(nrow(CHFLS_train), 
+                                             mincut = 10, 
+                                             minsize = 20, 
+                                             mindev = 0.001), 
+                        split = "deviance")
+
+# Utilizando o tamanho de 15 como referido no enunciado, obtermos a seguinte Árvore Podada
+ctree.CHFLS <- prune.tree(ctree_large.CHFLS, best=15)
+
+# Representação da Árvore de Classificação em Lista indentada 
+ctree.CHFLS
+
+# Sumário da Árvore produzida
+summary(ctree.CHFLS)
+```
+
+## 3.3) [2 valores] A partir da árvore obtida e considerando a amostra de treino: estimação de R_happy e apresentação da correspondente matriz de classificação e % de casos incorretamente classificados
+
+```{r}
+# Estimação de R_happy usando a árvore obtida na amostra de treino
+predicted_train <- predict(ctree.CHFLS, newdata = CHFLS_train, type = "class")
+
+# Matriz de Classificação
+(confusion_matrix_train <- table(CHFLS_train$R_happy, predicted_train))
+
+# Número de casos incorretamente classificados
+incorrectly_classified_train <- sum(confusion_matrix_train) - sum(diag(confusion_matrix_train))
+
+# Percentagem de casos incorretamente classificados
+percentage_incorrect_train <- incorrectly_classified_train / sum(confusion_matrix_train) * 100
+
+cat("Percentagem de casos incorretamente classificados (treino):",round(percentage_incorrect_train,2), "%\n")
+
+```
+
+## 3.4) [2 valores] A partir da árvore obtida e considerando a amostra de teste: estimação de R_happy e apresentação da correspondente matriz de classificação e % de casos incorretamente classificados
+
+```{r}
+# Estimação de R_happy usando a árvore obtida na amostra de teste
+predicted_test <- predict(ctree.CHFLS, newdata = CHFLS_test, type = "class")
+
+# Matriz de Classificação
+(confusion_matrix_test <- table(CHFLS_test$R_happy, predicted_test))
+
+# Número de casos incorretamente classificados
+incorrectly_classified_test <- sum(confusion_matrix_test) - sum(diag(confusion_matrix_test))
+
+# % de casos incorretamente classificados
+percentage_incorrect_test <- incorrectly_classified_test / sum(confusion_matrix_test) * 100
+
+cat("Percentagem de casos incorretamente classificados (teste):", percentage_incorrect_test, "%\n")
+```
+
+## 3.5) [1 valor] Completação das frases seguintes em comentário do script (com eventual obtenção de resultados adicionais): 
+
+```{r}
+# A Árvore de Classificação é constituída por ______ nós folha; sobre a amostra de treino a Deviance inicial é _______ e a Residual Deviance é ____________; a percentagem de casos incorretamente classificados nas amostras de treino e teste _________ (indica/ não indica) overfitting.
+```
+
+A Árvore de Classificação é constituída por **15** nós folha; sobre a amostra de treino a Deviance inicial é **1892** e a Residual Deviance é **1569**; a percentagem de casos incorretamente classificados nas amostras de treino e teste **não indica** (indica/ não indica) *overfitting*.
+

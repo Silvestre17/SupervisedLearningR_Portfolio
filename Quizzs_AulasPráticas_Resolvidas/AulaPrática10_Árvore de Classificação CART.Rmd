@@ -1,0 +1,259 @@
+---
+title: "MAS | Aula Prática 10 - Árvores CART"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Exemplo de classificação sobre data set `Iris`
+
+- Margarida G. M. S. Cardoso
+- 17 de março, 2023
+
+# PL10 Goal:
+
+\textcolor{lightgray}{To build a classification CART tree on wholesale data to predict “Channel”.}
+
+- Construir uma árvore CART de classificação em dados grossistas para prever "Canal".
+
+```{r}
+# Bibliotecas
+rm(list=ls(all=TRUE)) # First remove everything!
+
+library(knitr)
+library(tree)
+```
+
+
+\newpage
+
+# 1) `Wholesale` data set (in the UCI Repository)
+
+## 1.a)	Get the data set wholesale and identify factors
+
+You will find the data set and more details in: https://archive.ics.uci.edu/ml/datasets/Wholesale+customers
+
+```{r}
+# setw() diretory where the data set is, or....
+wholesale<-read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/00292/Wholesale%20customers%20data.csv", header = TRUE) 
+head(wholesale)
+
+# Channel (the target variable)
+wholesale$Channel <- factor(wholesale$Channel , levels = c(1,2), labels = c("Horeca", "Retail"))
+
+# Region
+wholesale$Region<- factor(wholesale$Region , levels = c(1,2,3), labels = c("Lisbon", "Oporto", "Other"))
+```
+
+## 1.b)	Wholesale descriptives
+
+```{r}
+knitr::kable(summary(wholesale[,1:4]))
+knitr::kable(summary(wholesale [,5:8]))
+```
+
+## 1.c) Initial Channel deviance
+
+```{r}
+tab_C<-table(wholesale$Channel)
+(D<--2*sum(tab_C*log(tab_C/nrow(wholesale),exp(1))))
+
+# or
+# (D <- -2*(298*log(298/440,exp(1))+142*log(142/440,exp(1))))
+
+```
+
+\newpage
+
+# 2) Learning a classification tree based on all data set
+
+## 2.a)	Start building a large tree
+
+```{r}
+# First, a note on predictors names:
+colnames(wholesale)
+
+# since names can be too big to produce an easy to read tree representati on
+# the following variables' names can be adopted:
+colnames(wholesale)<-c("Cha","Reg","Fre","Mil","Gro","Fro","Det","Del")
+
+#
+ctree_large.wholesale<-tree(Cha~. ,data=wholesale, 
+                            control=tree.control(nrow(wholesale),
+                                                 mincut = 1, 
+                                                 minsize = 2, 
+                                                 mindev = 0.001), 
+                            split = "deviance") 
+summary(ctree_large.wholesale )
+# overfitting should be avoided and thus prunning should be conducted
+```
+
+## 2.b)	Cost-complexity Pruning of Tree
+
+```{r}
+seq_ctree.wholesale<-prune.tree(ctree_large.wholesale ) 
+plot(seq_ctree.wholesale$size,seq_ctree.wholesale$dev,pch =20)
+lines(seq_ctree.wholesale$size,seq_ctree.wholesale$dev, col = "red")
+
+# OR..(see after)
+
+plot(seq_ctree.wholesale$size,seq_ctree.wholesale$dev,pch =20,type="o",
+     col="red", 
+     main="Residual Deviance vs. Number of leaf nodes", 
+     xlab="Number of leafs",
+     ylab="Residual Deviance")
+```
+
+\newpage
+
+# 3)	Obtain a specific prunned tree
+
+## 3.a)	Try to specify which size is “best”
+
+```{r}
+ctree.wholesale<-prune.tree(ctree_large.wholesale, best=12 ) 
+summary(ctree.wholesale)
+```
+
+
+## 3.b)	Plot the chosen tree
+
+```{r}
+plot(ctree.wholesale, type="uniform")
+text(ctree.wholesale,pretty =0,cex=0.8)
+title(main = "Prunned Classification Tree for Channel")
+```
+
+## 3.c)	Predict with the chosen tree
+
+```{r}
+#
+probs.ctree.wholesale<-predict(ctree.wholesale,wholesale,type="vector") # the default type
+head(probs.ctree.wholesale)
+
+#
+pred.ctree.wholesale<-predict(ctree.wholesale,wholesale,type="class") 
+head(pred.ctree.wholesale)
+```
+
+## 3.d)	Classification tree performance
+
+```{r}
+deviance(ctree.wholesale)
+misclass.tree(ctree.wholesale)
+summary(ctree.wholesale)
+# "tree" calls "residual mean deviance" the deviance divided by n-|T|
+```
+
+## 3.e)	One final note on classification tree performance
+
+```{r}
+# if one resorts to probs to classiy
+pred <-apply(probs.ctree.wholesale,1,which.max)
+head(pred)
+
+pred<-factor(pred , levels = c(1,2), labels = c("Horeca", "Retail"))
+head(pred)
+
+(confusion_mat<-table(wholesale$Cha,pred))
+
+# if one resorts to type="class" pred
+(confusion_mat<-table(wholesale$Cha,pred.ctree.wholesale))
+
+# in fact, there are ties that provide different solutions...
+probs.ctree.wholesale[which(pred!=pred.ctree.wholesale),]
+
+# since ties are “solved” at random, the predictions based on probabiliti es and the ones yielded by type=“class” option may differ
+pred[which(pred!=pred.ctree.wholesale)]
+pred.ctree.wholesale[which(pred!=pred.ctree.wholesale)]
+```
+
+\newpage
+
+# Exercícios
+
+\textcolor{lightgray}{**EXERCISE 1:** Build a large classification tree on a training set and prunne this tree. Compare the performance of the trees obtained (without and with prunning) on a test set}
+
+- Construa uma grande árvore de classificação em um conjunto de treino e pode esta árvore. Compare o desempenho das árvores obtidas (sem e com poda) num conjunto de teste
+
+```{r}
+# data(wholesale)
+set.seed(777)
+
+#Dividir em conjunto de treino e conjunto de teste
+train_index <- sample(1:nrow(wholesale), 0.65*nrow(wholesale))
+wholesale_train <- wholesale[train_index,]
+wholesale_test <- wholesale[-train_index,]
+
+#Construir uma grande árvore de classificação
+ctree.large_train <- tree(Cha ~ ., data=wholesale_train, 
+                          control=tree.control(nrow(wholesale_train), 
+                                               mincut = 1, 
+                                               minsize = 2, 
+                                               mindev = 0.0001), 
+                          split = "deviance")
+
+# instead of deviance we could use gin
+
+summary(ctree.large_train) 
+# accuracy of large tree on train set
+#accuracy of large tree on test set
+
+pred.ctree.large_test <- predict(ctree.large_train, wholesale_test, type= "class")
+mean(pred.ctree.large_test == wholesale_test$channel)
+
+# prome large tree
+seq_ctree <-prune.tree(ctree.large_train)
+plot(seq_ctree$size, seq_ctree$dev, pch =20)
+lines(seq_ctree$size, seq_ctree$dev, col = "red")
+
+
+
+# accuracy of prunned tree on training set
+ctree_train <- prune.tree(ctree.large_train, best=8) # Pode-se considerar k diferente
+summary(ctree_train)
+
+1-misclass.tree(ctree_train)/nrow(wholesale_train)
+# mean
+pred.ctree_train <- predict(ctree_train, wholesale_train, type="class")
+mean(pred.ctree_train == wholesale_train$Cha)
+
+# accuracy of prunned tree on test set
+pred.ctree_test <- predict(ctree_train, wholesale_test, type="class")
+mean(pred.ctree_test == wholesale_test$Cha)
+```
+
+> Podemos observar que o erro de classificação para a árvore grande é maior que para a árvore podada.
+
+---
+
+\textcolor{lightgray}{**EXERCISE 2:** Use the cv.tree() to select a specific prunned tree through cross- validation}
+
+- Use o cv.tree() para selecionar uma árvore específica prunned através da validação cruzada
+
+```{r}
+# Create tree object
+ctree_large.wholesale <- tree(Cha ~ ., data = wholesale,
+                              control = tree.control(nrow(wholesale),
+                                                     mincut = 1,
+                                                     minsize = 2,
+                                                     mindev = 0.001),
+                              split = "deviance")
+
+# Use cross-validation to select optimal pruning parameter
+cv_results <- cv.tree(ctree_large.wholesale, FUN = prune.tree)
+cv_results
+```
+
+```{r}
+# Prune tree with optimal parameter
+pruned_ctree <- prune.tree(ctree_large.wholesale, best = cv_results$k[which.min(cv_results$dev)])
+
+# Print pruned tree summary
+summary(pruned_ctree)
+```
+

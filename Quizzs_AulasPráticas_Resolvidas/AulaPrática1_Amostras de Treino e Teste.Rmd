@@ -1,0 +1,290 @@
+---
+title: "MAS | Aula Prática 1 - Amostras de Treino e Teste"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Exemplos de Correlações e Regressão Simples sobre o dataset `Boston`
+
+- Margarida G. M. S. Cardoso
+- 7 e 8 de fevereiro, 2023
+
+# PL1 Goal:
+
+
+\textcolor{lightgray}{To use training and test samples to illustrate the evaluation of results of supervised learning using Simple Linear Regression on the Boston data set.}
+
+\textcolor{lightgray}{We will resort to the following libraries that you need to have installed:}
+
+Utilizar amostras de treino e teste para ilustrar a avaliação dos resultados da aprendizagem supervisionada utilizando a Regressão Linear Simples no conjunto de dados de Boston.
+
+Recorreremos às seguintes bibliotecas que precisa de ter instalado:
+
+```{r}
+# Bibliotecas
+library(MASS)    #The MASS library contains the Boston data set 
+library(Metrics)
+library(ggplot2)
+library(lsr)
+```
+
+\newpage
+
+## 1) The Boston data set
+
+The Boston data set records median house values (medv) for 506 neighborhoods around Boston.
+
+### TARGET:
+
+- **medv:** median house value 
+
+### PREDICTORS: 
+
+- **crim:** per capita crime rate by town 
+
+- **zn:** proportion of residential land zoned for lots over 25,000 sq 
+
+- **indus:** proportion of non-retail business acres per town 
+
+- **chas:** Charles River dummy variable (= 1 if tract bounds river; 0 otherwise) 
+
+- **nox:** nitric oxides concentration (parts per 10 million) 
+
+- **rm:** average number of rooms per dwelling 
+
+- **age:** proportion of owner-occupied units built prior to 1940 
+
+- **dis:** weighted distances to five Boston employment centers 
+
+- **rad:** index of accessibility to radial highways
+
+- **tax:** full-value property-tax rate per $10,000 
+
+- **pratio:** pupil-teacher ratio by town 
+
+- **black:** $1000(B_k - 0.63)^2$, where $B_k$ is the proportion of [people of African American descent]by town 
+
+- **lstat:** $\%$ lower status of the population
+
+---
+
+## 1.a) Descriptives
+
+```{r}
+#For more details: 
+#?Boston data(Boston) 
+dim(Boston)
+names(Boston)
+```
+
+```{r}
+#round(cor(Boston[,c(4,14)]),3) #knitr::kable(summary(Boston)) shows that chas should be a factor (0,1)... 
+Boston$chas <- as.factor(Boston$chas) 
+knitr::kable(summary(Boston[,1:7]))
+```
+
+```{r}
+knitr::kable(summary(Boston[,8:14]))
+```
+
+```{r out.width='48%', fig.show='hold', fig.align='center'}
+attach(Boston) 
+# boxplot and outliers 
+ggplot(Boston, aes(x = "", y = medv)) + geom_boxplot()
+```
+
+```{r}
+# upper outliers 
+quantile(medv)
+
+which(medv>quantile(medv,prob=0.75)+1.5*(quantile(medv,prob=0.75)-quantile(medv,prob=0.25)))
+```
+
+```{r}
+# lower outliers 
+which(medv<quantile(medv,prob=0.25)-1.5*(quantile(medv,prob=0.75)-quantile(medv,prob=0.25)))
+```
+
+## 1.b) The target variable medv and its correlations with candidate predictors 
+
+```{r}
+# correlation with qualitative predictor 
+anova_ <- aov(medv ~ chas, Boston) 
+(Eta_chas <- sqrt(etaSquared(anova_ )[,1]))  
+
+# correlation with quantitative predictors 
+knitr::kable(corr.Boston<-round(cor(Boston[,-4]),2))
+```
+
+
+```{r}
+corr.Boston[,13]# correlations with target to select the most promising predictor
+
+which.max(abs(corr.Boston[-13,13]) )#maximum absolute value of corr between Y and Xi is referring lstat
+
+corr.Boston[12,13]# check the linear correlation between target and the chosen predictor
+```
+
+\newpage
+
+# 2) Simple linear regression for Boston (all data set)
+
+## 2.a) Using `lm`
+
+```{r}
+#?lm to get to know lm 
+lm.Boston1 <-lm(medv~lstat ,data=Boston ) 
+lm.Boston1
+
+#str(lm.Boston1) 
+#str(summary(lm.Boston1)) 
+lm.Boston1$coefficients# how to interpret?
+```
+
+
+- Por cada unidade percentual de desfavoreciemnto, decresce em $0.95$ ...
+
+---
+
+## 2.b) Plot the approximately (…) linear relationship
+
+
+```{r out.width='70%', fig.show='hold', fig.align='center'}
+#plot (1:20 ,1:20, pch =1:20)
+# the available symbols for scatter graph 
+plot(lstat ,medv,pch =20)
+abline(lm.Boston1)
+abline(lm.Boston1 ,lwd =3)# line width ...
+abline (lm.Boston1 ,lwd =3, col ="red ")#...and colour
+```
+
+---
+
+## 2.c) Predicted values and residuals 
+```{r out.width='50%', fig.show='hold', fig.align='center'}
+pred.lm.Boston1<-predict(lm.Boston1)
+residuals.Boston1 <- medv-pred.lm.Boston1 
+head(residuals.Boston1)
+
+#or 
+residuals.Boston1<-residuals(lm.Boston1)
+round(head(residuals.Boston1),3)
+```
+
+
+## 2.d) A note on outliers in the context of regression
+
+An outlier is a point for which yi is far from the value predicted by the model. We can inspect the graphic of predicted values vs. residuals looking for potential outliers. More details on the identification of outliers will be provided in next classes.
+
+```{r out.width='70%', fig.show='hold', fig.align='center'}
+plot(predict(lm.Boston1), residuals(lm.Boston1))
+
+# the most "promising" outlier candidate 
+lm.Boston1$residuals[which.max(abs(residuals (lm.Boston1)))]
+```
+
+## 2.e) R-squared: a goodness-of-fit measure 
+
+```{r}
+(rsq<-summary(lm.Boston1)$r.squared)
+
+#or 
+(rsq <- cor(medv,lstat)^2)
+
+#or 
+(rsq<- 1-sum(residuals.Boston1^2)/sum((medv-mean(medv))^2))
+
+#or, with Metrics 
+(rsq <- 1-sse(medv,predict (lm.Boston1))/sse(medv,mean(medv)))
+
+# how to interpret?
+```
+
+- A var. *target* do nosso modelo é explicado em $50\%$ pelos preditores.... 
+
+
+\newpage
+
+# 3) Conducting simple linear regression resorting to training and test sets
+
+## 3.1) Training and Test sets
+
+```{r}
+set.seed(777) 
+ind_train <- sample(nrow(Boston),.65*nrow(Boston)) 
+Boston_train <- Boston[ind_train,] 
+dim(Boston_train)
+
+Boston_test <- Boston[-ind_train,] 
+dim(Boston_test)
+```
+
+## 3.2) Learning with simple linear regression based on the training set and then using the test set to evaluate the performance 
+
+```{r}
+# learning is based on the training sample 
+lm.Boston1_train <-lm(medv~lstat,data=Boston_train ) 
+lm.Boston1_train$coefficients
+summary(lm.Boston1_train)$r.squared
+
+#or 
+(rsq_train<-1-sse(medv[ind_train], predict(lm.Boston1_train))/sse(medv[ind_train],mean(medv[ind_train])))
+```
+
+```{r}
+# we use the test set to provide an estimate of R-squared in new data 
+head(Boston_test$medv)
+```
+
+```{r}
+pred.lm.Boston1_test<-predict(lm.Boston1_train ,Boston_test) 
+head(pred.lm.Boston1_test)
+```
+
+```{r}
+(rsq_test<-1-sse(medv[-ind_train], pred.lm.Boston1_test)/sse(medv[-ind_train],mean(medv[-ind_train])))
+```
+
+---
+
+\newpage
+
+# EXERCISES
+
+## EXERCISE 1:
+
+Consistency between fit in train and test samples is desirable. Why?
+
+- O modelo desempenha como se prévia no treino ao ser aplicado em novos dados $\rightarrow$ o modelo é "confiável"
+
+ - Também se acrescenta que neste caso não haverá sobreajustamento.
+
+
+## EXERCISE 2: 
+
+What does it mean to have negative R-squared value in a test set?
+
+- A relação seria **inversa**. 
+
+- No *conjunto de teste* não poderia ocorrer, pois o modelo seria pior que a média.
+
+
+
+## EXERCISE 3: 
+
+Perform simple linear regression on the Boston data set removing a potential outlier and re-evaluate its performance on all data set. Comment on the possibility of conducting a similar procedure considering training and test sets
+
+```{r}
+# Segundo a cena que diz em cima, 372 é o ponto que maior resíduo tem
+# Vamos retirá-lo
+
+Boston_sem_out <- Boston[-372,]
+lm.Boston_sem_out <-lm(medv~lstat ,data=Boston_sem_out) 
+summary(lm.Boston_sem_out)
+```
+

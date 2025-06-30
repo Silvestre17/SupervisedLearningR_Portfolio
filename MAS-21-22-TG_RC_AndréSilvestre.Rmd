@@ -1,0 +1,272 @@
+--- 
+title: "MAS: Trabalho de Grupo (indicar ID de grupo)"
+author: "nome completo de representante do grupo"
+date: "25 de março, 2022"
+output: word_document
+---
+
+# Nota:
+Deve efetuar todos os Save com "Save with encoding UTF-8" de modo a manter palavras acentuadas e caracteres especiais**
+
+
+```{r message=FALSE, warning=FALSE}
+# Remover tudo!
+rm(list=ls(all=TRUE))
+
+# Incluir as libraries de que necessita
+library(MASS)        # The MASS library contains the Boston data set 
+library(Metrics)     # To help calculating metrics
+library(ggplot2)     # To provide graphics
+library(lsr)         # For ETA and Cramer's V measure of association
+library(caret)       # Cross-validation + Metrics for classification
+library(e1071)       # For classification with Naïve Bayes
+library(FNN)         # Implementing KNN - K-Nearest Neighbour
+library(car)         # To verify multicolinearity
+library(psych)       # For some descriptives
+library(nnet)        # For Multinomial Logistic Regression
+library(knitr)       # To pretty outputs
+library(tree)        # For Classification Tree
+```
+
+\newpage
+
+# 1.	Leitura dos dados Cellular e análise preliminar dos mesmos  
+
+## 1.1) Leitura os dados usando cellular<-read.csv("Cellular.csv", header=TRUE, dec=".", sep=";").Nota: verifique sep no ficheiro de origem.  
+
+```{r}
+# Leitura do dataset
+cellular<-read.csv("Cellular.csv", header=TRUE, dec=".", sep=";")
+```
+
+## 1.2) [1 valor] Apresentação de head(cellular), definição do fator score_r e apresentação da tabela de frequências absolutas correspondente
+
+```{r}
+# Primeiras observações do dataset
+head(cellular)
+
+# Definir a variável score_r como factor
+cellular$score_r <- factor(cellular$score_r,levels = c(0,1), labels = c("No churn", "Churn"))
+
+# Tabela de frequências absolutas
+table(cellular$score_r) 
+```
+
+## 1.3)[0.5 valores] Realização de uma análise descritiva dos dados apresentando o número de observações, mínimo, máximo, média, desvio padrão, medida de assimetria e de achatamento
+
+```{r}
+# Análise descritiva e dimensão do dataset "cellular"
+summary(cellular)
+dim(cellular)
+
+# Mínimo, máximo, média, desvio padrão, medida de assimetria (skewness) e de achatamento (kurtosis)
+describe(cellular)[c(8,9,3,4,11,12)]
+```
+
+## 1.4) [0.5 valores] Divisão dos dados em amostra de treino (65%) e de teste (35%) usando set.seed(888) e apresentação de tabela de frequências absolutas de score_r em cada amostra
+
+```{r}
+# Definir o set.seed para permitir reprodutibilidade dos resultados
+set.seed(888)
+
+# Divisão em Conjunto Treino/Teste
+ind_train <- sample(nrow(cellular),0.65*nrow(cellular)) 
+
+# Conjunto Treino (cellular_train)
+cellular_train <- cellular[ind_train,] 
+paste("O Conjunto de Treino tem", nrow(cellular_train),"observações.")
+
+# Tabela de frequências absolutas da variável score_r - conjunto treino
+table(cellular_train$score_r)
+
+# Conjunto Teste (cellular_test)
+cellular_test <- cellular[-ind_train,] 
+paste("O Conjunto de Teste tem", nrow(cellular_test),"observações.")
+
+# Tabela de frequências absolutas da variável score_r - conjunto teste
+table(cellular_test$score_r)
+
+```
+
+## 1.5)	[0.5 valores] Obtenção dos dados dos preditores normalizados (normalização 0-1), nas amostras de treino e teste, e apresentação das primeiras 6 linhas destas amostras após normalização
+
+```{r}
+# Função de normalização (0-1)
+normalize <- function(x){
+  return ((x -min(x)) / (max(x)-min(x)))
+  }
+
+# Conjunto de Treino Normalizado (0-1)
+cellular_train_norm <- cellular_train
+cellular_train_norm[,1:6] <-sapply(cellular_train[,1:6],normalize)
+head(cellular_train_norm)
+
+# Conjunto de Teste Normalizado (0-1)
+cellular_test_norm <- cellular_test
+cellular_test_norm[,1:6] <-sapply(cellular_test[,1:6],normalize)
+head(cellular_test_norm)
+```
+
+## 1.6) [1 valor] Completação das frases seguintes em comentário do script (com eventual obtenção de resultados adicionais): 
+
+```{r}
+#A dimensão de “Cellular.csv” é de ______ número de linhas e ________ número de colunas; na amostra original encontram-se ______ casos com score_r=”No churn” e no conjunto de teste esta categoria corresponde a _____ % das observações.
+
+# 1 - 250
+# 2 - 7
+# 3 - 200
+# 4 - 75
+```
+
+A dimensão de “Cellular.csv” é de **`r nrow(cellular)`** número de linhas e **`r ncol(cellular)`** número de colunas; na amostra original encontram-se **`r as.vector(table(cellular$score_r))[1]`** casos com score_r=”No churn” e no conjunto de teste esta categoria corresponde a **`r as.vector(table(cellular_test$score_r))[1]`** % das observações.
+
+
+# 2. Aprendizagem, sobre a amostra de treino, do 3-Nearest Neighbour (baseado em dois preditores) para prever score_r e avaliação do seu desempenho
+
+## 2.1) [1.5 valores] Escolha dos preditores, justificando
+
+```{r}
+# Associação entre o target categórico e os preditores métricos 
+eta<- matrix(0,6,1)
+rownames(eta)<-colnames(cellular[,1:6]) 
+
+for (i in 1:6) { 
+  anova_ <- aov (cellular[,i] ~ score_r, cellular) # numbers for levels (not strings)
+  eta[i-2]<-sqrt(etaSquared(anova_ )[,1]) 
+  } 
+eta
+
+# Correlação entre preditores
+cor(cellular[1:6])
+```
+
+> Escolhi os preditores ***los*** e ***income*** para que sejam fortemente associadas ao target e não entre preditores de modo a evitar problemas de multicolinearidade
+
+## 2.2) [2 valores] Obtenção do modelo e das correspondentes estimativas de score_r sobre amostra de teste
+
+```{r}
+# Modelo de KNN com k=3
+knn <- knn(cellular_train_norm[,4:5], cellular_test_norm[,4:5], cellular_train_norm$score_r, k=3,prob = TRUE)
+
+```
+## 2.3) [2 valores] Apresentação da Confusion matrix sobre amostra de teste e do índice de Huberty correspondente
+
+```{r}
+# Matriz de Classificação para o conjunto de teste
+table(knn ,cellular_test_norm$score_r)
+
+# Accuracy 
+accuracy <- mean(knn== cellular_test_norm$score_r)
+
+# Índice de Huberty
+default_p <- max(mean(cellular_test_norm == "No Churn"), mean(cellular_test_norm == "Churn")) # majorit y class frequency
+(Huberty<-(accuracy-default_p)/(1-default_p))
+```
+
+## 2.4) [2 valores] Completação das frases seguintes em comentário do script (com eventual obtenção de resultados adicionais): 
+
+```{r}
+
+#Na aprendizagem foram usados dados ___________(normalizados/ não normalizados); as observações mais próximas da primeira observação do conjunto de teste são______________ (números das observações); a probabilidade da última observação do conjunto de teste pertencer à classe alvo “No churn”, estimada pelo modelo, é__________________; segundo os resultados estimados, o churn dos clientes na amostra de teste será _______________%.
+
+# 1 - normalizados
+# 2 - 146  10  20
+# 3 - 1
+# 4 - 
+```
+
+
+Na aprendizagem foram usados dados **normalizados**; as observações mais próximas da primeira observação do conjunto de teste são **` r attr(knn,"nn.index")[1,]`** ; a probabilidade da última observação do conjunto de teste pertencer à classe alvo “No churn”, estimada pelo modelo, é **`r attr(knn,"prob")[nrow(cellular_test_norm)] `**; segundo os resultados estimados, o churn dos clientes na amostra de teste será **`r round(as.vector(prop.table(table(knn)))[1], 2)` **%.
+
+
+\newpage
+
+
+# 3. Aprendizagem, sobre a amostra de treino, de uma Árvore de Regressão para prever score e avaliação do seu desempenho
+
+
+## 3.1) [1.5 valores] Obtenção do modelo, com cerca de 10 nós folha, e apresentação da árvore correspondente
+
+```{r}
+# Começamos por criar uma Árvore Grande
+rtree_large <-tree(score~. ,data=cellular_train, 
+                            control=tree.control(nrow(cellular_train),
+                                                 mincut = 1, 
+                                                 minsize = 2, 
+                                                 mindev = 0.001), 
+                            split = "deviance") 
+
+# Resultados da Árvore
+summary(rtree_large)
+
+
+### Custo-Complexidade - Poda da Árvore
+
+# Gráfico de Custo/Complexidade
+seq_rtree_prune <- prune.tree(rtree_large)
+plot(seq_rtree_prune$size,seq_rtree_prune$dev,pch =20)
+lines(seq_rtree_prune$size,seq_rtree_prune$dev, col = "red")
+
+# Utilizando o "melhor" tamanho de 15 como referido no enunciado, obtermos a seguinte Árvore Podada
+rtree.cellular<-prune.tree(rtree_large, best=10) 
+summary(rtree.cellular)
+
+# a) Representações da Árvore de Classificação - Lista indentada
+rtree.cellular
+
+# b) Representações da Árvore de Classificação - Gráfico da Árvore 
+plot(rtree.cellular, type="uniform")
+text(rtree.cellular, pretty =0, cex=0.8)
+title(main = "Prunned Classification Tree for score")
+```
+
+## 3.2) [1.5 valores] Estimação de score sobre amostra de teste, a partir da árvore obtida, e apresentação das estimativas correspondentes às 6 primeiras observações desta amostra
+
+```{r}
+# Estimação de score sobre amostra de teste
+pred_ctree.cellular_test <- predict(rtree.cellular, cellular_test)
+
+# 6 primeiras observações
+head(pred_ctree.cellular_test)
+```
+
+## 3.3) [1.5 valores] Apresentação de 3 métricas de regressão associadas ao modelo aplicado sobre a amostra de teste
+
+```{r}
+# Accuracy sobre cellular_test
+confusion_mat_tree_test <- table(cellular_test$score, pred_ctree.cellular_test)
+(accuracy.test <- sum(diag(confusion_mat_tree_test))/sum(confusion_mat_tree_test))
+
+# R-Squared
+RSS <-sse(cellular_test$score, pred_ctree.cellular_test)
+(RSQ <-1-RSS/sse(cellular_test$score,mean(cellular_test$score)))
+
+# MAPE Test | Erro de Previsão 
+actual2 <- cellular_test$score
+n<-length(cellular_test$score)
+MAPE2 <- (1/n) * sum(abs((actual2 - pred_ctree.cellular_test)/actual2))
+MAPE2
+```
+
+## 3.4) [1 valor] Apresentação, com base nas estimativas obtidas em 3.2), de uma tabela de frequências para as categorias Churn e No churn
+
+```{r}
+# Vetor de categorias com base nas estimativas de score
+table(ifelse(pred_ctree.cellular_test > 60, "Churn", "No churn"))
+```
+
+## 3.5) [2 valores] Completação das frases seguintes em comentário do script (com eventual obtenção de resultados adicionais): 
+
+```{r}
+#Na aprendizagem foram usados dados ________ (normalizados/ não normalizados);  o R-Square associado ao modelo sobre o teste é______________; o nó folha com menor frequência inclui ________________observações do teste;  segundo os resultados estimados, a % de observações da amostra de teste suscetíveis de fazer churn será ______________.
+
+# 1 - não normalizados
+# 2 - 0.6277124
+# 3 - 45) 
+# 4 - 11/77 = 12.5%
+
+```
+
+Na aprendizagem foram usados dados **normalizados**;  o R-Square associado ao modelo sobre o teste é **`r RSQ`**; o nó folha com menor frequência inclui **45)** observações do teste;  segundo os resultados estimados, a % de observações da amostra de teste suscetíveis de fazer churn será **`r as.vector(table(ifelse(pred_ctree.cellular_test > 60, "Churn", "No churn"))["Churn"] / sum(table(ifelse(pred_ctree.cellular_test > 60, "Churn", "No churn")))) * 100`**.
+
+

@@ -1,0 +1,383 @@
+---
+title: "MAS | Aula Prática 8 - Regressão Logística Multinomial"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Exemplo de classificação sobre data set `Iris`
+
+- Margarida G. M. S. Cardoso
+- 7 de março, 2023
+
+# PL8 Goal:
+
+\textcolor{lightgray}{To use the Multinomial Logistic Regression to predict Species (versicolor, virginica or setosa) in the iris data set.}
+
+- Utilizar a Regressão Logística Multinomial para prever espécies (versicolor, virginica ou setosa) no conjunto de dados da íris.
+
+```{r}
+# Bibliotecas
+rm(list=ls(all=TRUE)) # First remove everything!
+
+library(psych)     # for some descriptives
+library(nnet)      # for Multinomial Logistic Regression
+```
+
+
+\newpage
+
+# 1) The `Iris` data set
+
+## 1.1)	Information on the data set
+
+The data set refers to 150 iris plants with 3 different species uniformly distributed in the sample. It includes characteristics of sepals and petals This data set is already known from ***PL4***
+
+
+
+```{r}
+data(iris)
+head(iris)
+
+sum(is.na(iris))
+```
+
+## 1.2)	The target initial/baseline deviance
+
+$$DEV^{n o m}=-2 \times \sum_{k=1}^K n_k \ln \left(\frac{n_k}{n}\right)$$
+
+```{r}
+dist_iris<-table(iris$Species)# Species are uniformly distributed
+-2*sum(dist_iris*log(dist_iris/nrow(iris),exp(1)))#-2*3*((50*log(50/150,e xp(1))))
+```
+
+## 1.3)	The target and its relationships with candidate predictors
+
+```{r}
+# there are 4 candidate predictors
+describe(iris[,1:4])
+
+# Eta measures the association between predictors and target
+Eta_<-function(y,x){
+  freqk<-as.vector(table(x)) 
+  l<-nlevels(x)
+  m<-rep(NA, l) 
+  qual<-as.numeric(x)
+  
+  for (k in 1:l){m[k]<-mean(y[qual == k])} 
+  return(sqrt(sum(freqk*(m-mean(y))^2)/sum((y-mean(y))^2)))
+}
+
+Eta_(iris$Sepal.Length,iris$Species)
+Eta_(iris$Sepal.Width,iris$Species)
+Eta_(iris$Petal.Length,iris$Species)
+Eta_(iris$Petal.Width,iris$Species)
+```
+
+## 1.4) Relationships between candidate predictors
+
+```{r}
+round(cor(iris[,1:4]),3)
+```
+
+
+\newpage
+
+# 2) Logistic Regression applications for iris data set
+
+## 2.1)	Multinomial Logistic Regression with constant only (maximum Residual Deviance)
+
+```{r}
+levels(iris$Species)
+
+# NOTE: we use relevel to establish reference class (eventually this is 
+# unnecessary...); thus we know we are predicting membership in the non-reference
+# categories versicolor and virginica; we can, eventually, change the 
+# reference category setosa... 
+
+rmlog.iris_b<-multinom(relevel(iris$Species, ref="setosa")~1, 
+                       data=iris,
+                       family=binomial)
+```
+
+ > **NOTA:** Se não houver convergencia é importante adicionar iterações.
+
+```{r}
+summary(rmlog.iris_b)
+# O AIC é maior pq tem os intersepts para a virginia e versicolor
+
+head(rmlog.iris_b$fitted.values)
+
+(baseline_deviance.iris<-rmlog.iris_b$deviance) 
+
+```
+
+## 2.2)	Multinomial logistic regression with perfet fit (zero Residual Deviance)
+
+> Uma estupidez... usar o preditor e target igual.
+
+>> $Deviance = 0$ pq não há erros
+
+```{r}
+Species_copy<-iris$Species
+rmlog.iris_p<-multinom(relevel(iris$Species, ref="setosa")~Species_copy, 
+                       data=iris) # obviously the fit will be perfect...
+rmlog.iris_p$deviance
+
+pred<-predict(rmlog.iris_p,iris) 
+knitr::kable(table(iris$Species,pred))
+```
+
+## 2.3)	Multinomial logistic regression with one (promising) metric predictor
+
+> Fomos ver qual é o maior $ETA$ 
+
+```{r}
+rmlog.iris_1 <- multinom(relevel(iris$Species, ref="setosa") ~ Petal.Length, 
+                         data=iris,
+                         family=binomial,
+                         maxit = 300)
+```
+
+> Temos de garantir que o valor final converge. Para tal aumentamos o nº de `maxit`
+
+```{r}
+# by default the number of iterations is 100; this number was increased to achieve convergence
+summary(rmlog.iris_1)
+
+# results from classification
+
+# using predicted classes
+pred <- predict(rmlog.iris_1,iris) 
+(confusion_mat<-table(iris$Species,pred))
+
+(accuracy_<-sum(diag(confusion_mat))/sum(confusion_mat))
+
+# or using predicted probabilities to derive classes - Os valores todos têm de somar 1 (por linha)
+head(rmlog.iris_1$fitted.values)
+
+# probabilities sum, for ch observation, is 1
+head(apply(rmlog.iris_1$fitted.values,1,sum)) 
+
+#
+confusion_mat<-table(iris$Species, apply(rmlog.iris_1$fitted.values, 1, which.max))
+colnames(confusion_mat)<-c("setosa","versicolor","virginica") 
+confusion_mat
+
+(accuracy_1<-sum(diag(confusion_mat))/sum(confusion_mat))
+
+# 	
+# Example of prediction with multinomial logistic regression 
+# for Petal.Length=5 (value for observation 114)
+# 	
+iris$Petal.Length[114]
+
+# the predicted target class
+(pred<-predict(rmlog.iris_1,data.frame(Petal.Length=iris$Petal.Length[114])))
+
+# the probabilities regarding each target class
+rmlog.iris_1$fitted.values[114,]
+
+# probabilities calculation
+rmlog.iris_1$wts# the multinomial Logistic coefficients in nnet
+
+
+#getwd() to source file location... 
+## knitr::include_graphics('multinomial.png')
+# this graphic helps to illustr ate relationships in the model
+
+# aux.variables
+vver<-rmlog.iris_1$wts[5]+rmlog.iris_1$wts[6]*iris$Petal.Length[114]
+vvir<-rmlog.iris_1$wts[8]+rmlog.iris_1$wts[9]*iris$Petal.Length[114]
+
+# prob. for versicolor
+(pver<-exp(vver)/(1+exp(vver)+exp(vvir)))
+# prob. for virginica
+(pvir<-exp(vvir)/(1+exp(vver)+exp(vvir)))
+#prob. for setosa
+(pset<-1/(1+exp(vver)+exp(vvir))) 
+
+# Hosmer and Lemeshow's R2_HL (relative improvement in Residual Deviance) 	
+(R2_HL_1<-(baseline_deviance.iris- rmlog.iris_1$deviance)/baseline_deviance.iris)
+```
+
+## 2.4)	Multinomial logistic regression with two (promising) predictors
+
+```{r}
+# NOTE: for multinom the variables on the rhs of the formula should be ro 
+# ughly scaled to [0,1] or the fit will be slow or may not converge at all 
+# (see EXERCISE 2). ----- ESTANDARDIZAR/NORMALIZAR
+ 
+rmlog.iris_2<-multinom(relevel(iris$Species, 
+                               ref="setosa")~Petal.Length+Sepal.Length, 
+                       data=iris)
+summary(rmlog.iris_2)
+
+# classification results
+pred<-predict(rmlog.iris_2,iris) 
+(confusion_mat<-table(iris$Species,pred))
+(accuracy_2<-sum(diag(confusion_mat))/sum(confusion_mat))
+
+# Hosmer and Lemeshow's R2_HL (relative improvement in Residual Deviance) 	
+(R2_HL_2<-(baseline_deviance.iris- rmlog.iris_2$deviance)/baseline_deviance.iris)
+
+# AIC (considering trade-off between model fit and complexity)
+(rmlog.iris_2$AIC) 
+```
+
+
+
+\newpage
+
+# Exercícios
+
+- Comparar qualidade de resultados de 2.3) e 2.4)
+
+> Recorrer métricas: Accuracy, $R^2_{HL}$ e AIC (menor - melhor) |  **Ver tabela final**
+
+
+\textcolor{lightgray}{**EXERCISE 1:** Obtain AIC from Residual Deviance for model in 2.4)}
+
+- Obter AIC de Residual Desviance para o modelo em 2.4)
+
+```{r}
+# Calculate AIC
+p <- 6
+(aic <- rmlog.iris_2$deviance + 2 * p)
+```
+
+
+---
+
+\textcolor{lightgray}{**EXERCISE 2:** Repeat the multinomial logistic regression with 2 predictors using normalized min-max values.}
+
+- Repita a regressão logística multinomial com 2 preditores utilizando valores min-max normalizados.
+
+```{r}
+# Função de Normalização
+normalize <- function(x){ 
+  return ((x -min(x)) / (max(x)-min(x)))}
+
+# Normalize predictors
+iris_norm <- iris
+iris_norm$Petal.Length <- normalize(iris$Petal.Length)
+iris_norm$Sepal.Length <- normalize(iris$Sepal.Length)
+# iris_norm[, c("Petal.Length", "Sepal.Length")] <- 
+#       lapply(iris_norm[, c("Petal.Length", "Sepal.Length")], normalize_var)
+
+rmlog.iris_2_norm<-multinom(relevel(iris_norm$Species, 
+                               ref="setosa")~Petal.Length+Sepal.Length, 
+                       data=iris_norm)
+summary(rmlog.iris_2_norm)
+
+# classification results
+pred<-predict(rmlog.iris_2_norm,iris_norm) 
+(confusion_mat<-table(iris_norm$Species,pred))
+(accuracy_3<-sum(diag(confusion_mat))/sum(confusion_mat))
+
+# Hosmer and Lemeshow's R2_HL (relative improvement in Residual Deviance) 	
+(R2_HL_norm<-(baseline_deviance.iris- rmlog.iris_2_norm$deviance)/baseline_deviance.iris)
+
+# AIC (considering trade-off between model fit and complexity)
+(rmlog.iris_2_norm$AIC) 
+```
+
+---
+
+\textcolor{lightgray}{**EXERCISE 3:** Use “virginica” as the reference category and run again the model with two predictors}
+
+**Note:** *vif()* does not work with `nnet`
+
+```{r}
+# the multinomial logistic regression model with two predictors
+rmlog.iris_3<-multinom(relevel(iris$Species, 
+                               ref="virginica")~Petal.Length+Sepal.Length, 
+                       data=iris,)
+summary(rmlog.iris_3)
+
+# classification results
+pred<-predict(rmlog.iris_3,iris) 
+(confusion_mat<-table(iris$Species,pred))
+(accuracy_4<-sum(diag(confusion_mat))/sum(confusion_mat))
+
+# Hosmer and Lemeshow's R2_HL (relative improvement in Residual Deviance) 	
+(R2_HL_4<-(baseline_deviance.iris- rmlog.iris_3$deviance)/baseline_deviance.iris)
+
+# AIC (considering trade-off between model fit and complexity)
+(rmlog.iris_3$AIC)
+```
+
+
+---
+
+**EXERCICIO 0**
+
+- Para 2.3), 2.4), EX2 e EX3 interpretar o coeficiente de Petal.Length
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+c("","Residual Deviance", "AIC", "R^2_HL", "Accuracy")
+c("2.3)", rmlog.iris_1$deviance, rmlog.iris_1$AIC, R2_HL_1, accuracy_1)
+c("2.4)", rmlog.iris_2$deviance, rmlog.iris_2$AIC, R2_HL_2, accuracy_2)
+c("EX2", rmlog.iris_2_norm$deviance, rmlog.iris_2_norm$AIC, R2_HL_norm, accuracy_3)
+c("EX3", rmlog.iris_3$deviance, rmlog.iris_3$AIC, R2_HL_4, accuracy_4)
+
+## knitr::kable(table/dataframe)
+```
+
+
+
+```{r}
+results <- data.frame(
+  Model = c("2.3)", "2.4)", "EX2", "EX3"),
+  Residual_Deviance = c(rmlog.iris_1$deviance, rmlog.iris_2$deviance, rmlog.iris_2_norm$deviance, rmlog.iris_3$deviance),
+  AIC = c(rmlog.iris_1$AIC, rmlog.iris_2$AIC, rmlog.iris_2_norm$AIC, rmlog.iris_3$AIC),
+  R2_HL = c(R2_HL_1, R2_HL_2, R2_HL_norm, R2_HL_4),
+  Accuracy = c(accuracy_1, accuracy_2, accuracy_3, accuracy_4)
+)
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(flextable)
+
+ftable_results <- flextable(head(results))
+
+ftable_results <- bg(ftable_results, bg = "#004225", part = "header")
+ftable_results <- color(ftable_results, color = "white", part = "header")
+ftable_results <- bold(ftable_results, bold = TRUE, part="header")
+ftable_results <- set_header_labels(ftable_results, Model = 'Modelo',Residual_Deviance = 'Desvio Residual', AIC = 'AIC', R2_HL = 'R2_HL', Accuracy = 'Acurácia')
+ftable_results <- autofit(ftable_results)
+
+ftable_results
+```
+
+### Comparar a qualidade dos resultados
+
+Para comparar a qualidade dos resultados dos diferentes modelos, é necessário analisar as métricas apresentadas na tabela.
+
+Em termos de Residual Deviance, o modelo 2.4) apresenta o menor valor, o que indica uma melhor adaptação dos dados ao modelo. No entanto, em termos de AIC, o modelo EX2 apresenta o menor valor, indicando que, apesar de ter uma Residual Deviance ligeiramente superior ao modelo 2.4), tem um desempenho geral melhor, considerando a complexidade do modelo.
+
+O R2_HL é uma métrica que indica a percentagem de melhoria da Residual Deviance do modelo em comparação com o modelo base (que tem todos os coeficientes iguais a 0). O modelo 2.4) apresenta o valor mais elevado de R2_HL, o que indica que apresenta a maior melhoria em relação ao modelo base.
+
+Finalmente, em termos de acurácia, os modelos 2.4), EX2 e EX3 apresentam todos uma acurácia de 96,67%, o que indica que todos são igualmente bons na classificação das espécies.
+
+---
+
+### Interpretar o coeficiente de Petal.Length
+
+Para interpretar o coeficiente de Petal.Length em cada modelo, precisamos lembrar que a regressão multinomial é uma extensão da regressão logística binária e usa a função logit para modelar a probabilidade de pertencer a cada categoria da variável resposta em relação às variáveis preditoras. Portanto, o coeficiente de Petal.Length em cada modelo representa o aumento esperado na probabilidade de pertencer a uma categoria específica da variável resposta (versicolor ou virginica) para um aumento unitário na Petal.Length, mantendo todas as outras variáveis constantes.
+
+- No modelo 2.3), o coeficiente de Petal.Length é X. Isso significa que, mantendo o comprimento da Sepal constante, espera-se um aumento de X vezes na probabilidade de pertencer à categoria Versicolor em relação à categoria Setosa para cada aumento unitário na Petal.Length.
+
+---
+
+No que diz respeito ao coeficiente de Petal.Length, nos modelos 2.3) e 2.4) o coeficiente é positivo, o que indica que à medida que o comprimento da pétala aumenta, a probabilidade de pertencer à espécie virginica aumenta em relação à espécie setosa. Já no modelo EX2, o coeficiente é negativo, o que indica uma relação inversa entre o comprimento da pétala e a probabilidade de pertencer à espécie virginica em relação à espécie setosa. No modelo EX3, o coeficiente é próximo de zero, o que indica que o comprimento da pétala não tem um impacto significativo na classificação das espécies.
+
+
+

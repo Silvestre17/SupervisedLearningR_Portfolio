@@ -1,0 +1,63 @@
+---
+title: "Quiz3"
+author: "André Silvestre Nº104532 CDB1"
+output: pdf_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Começamos por importar e observar um sumário dos dados.
+
+```{r}
+# Import da Base de Dados
+dados <- read.csv("Play_complete.csv",header=TRUE, dec=".", stringsAsFactors = TRUE)
+summary(dados)
+```
+
+---
+
+\newpage
+
+## Enunciado
+
+Considere a BD Play. 
+
+- Determine a diversidade de **Play** usando a entropia($H$) e a entropia normalizada ($Hn$). 
+
+Use o `rmarkdown` para calcular e apresentar os seus resultados.
+
+---
+
+## Fórmulas
+
+**Entropia:**
+
+$$\quad H=-\sum_{k=1}^K \frac{n_k}{n} \log \left(\frac{n_k}{n}\right)$$
+
+**Entropia Normalizada (entre 0 e 1):**
+
+$$\mathrm{Hn}=-\frac{\sum_{k=1}^K \frac{n_k}{n} \log \left(\frac{n_k}{n}\right)}{\log(K)}$$
+---
+
+### Cálculos
+
+```{r}
+# Cálculo da Entropia
+freq <- prop.table(table(dados$PLAY))   # Frequência Relativa da Variável PLAY
+entropia <- -sum(freq*log(freq,2))      # Entropia
+entropia
+```
+
+```{r}
+# Cálculo da Entropia Normalizada
+n <- length(table(dados$PLAY))           # Nº de Categorias da Variável PLAY
+entropia_norm <- entropia/log(n,2)       # Entropia Normalizada
+entropia_norm
+```
+
+```{r}
+cat("A Entropia é de",round(entropia,2),"e a Entropia Normalizada é de",round(entropia_norm,2))
+```

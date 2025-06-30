@@ -1,0 +1,95 @@
+---
+author: "André Silvestre Nº104532 CDB1"
+date: "`r Sys.Date()`"
+output: pdf_document
+title: "Quiz2"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Começamos por importar e observar um sumário dos dados.
+
+```{r}
+# Import da Base de Dados
+dados <- read.csv("Play_complete.csv",header=TRUE, dec=".", stringsAsFactors = TRUE)
+summary(dados[c(1,3,6)]) # Apenas as variáveis em estudo
+```
+
+---
+
+## Enunciado
+
+Considere os resultados das probabilidades condicionadas do exemplo de aplicação do Naïve Bayes sobre Play. 
+
+Determine, apresentando os seus cálculos, as probabilidades de **`play`** e de **`don’t play`** associadas à observação (`OUTLOOK = sunny`, `WIND = not windy`), de acordo com os mesmos resultados.
+
+---
+
+### Fórmulas
+
+- **Probabilidade Condicionada**
+
+$$P(A \mid B)=\frac{P(A \cap B)}{P(B)} \;\;\;\;\operatorname{com} \;\;\;\; P(B)>0$$
+
+- **Fórmula de Bayes**
+
+$$P(A \mid B)=\frac{P(B \mid A) P(A)}{P(B)}$$
+atendendo a que
+
+$$P(A \mid B)=\frac{P(A \cap B)}{P(B)} \Leftrightarrow P(A \cap B)=P(A \mid B) P(B)$$
+
+e o mesmo se aplica a
+
+$$P(B \mid A)=\frac{P(A \cap B)}{P(A)} \Leftrightarrow P(A \cap B)=P(B \mid A) P(A)$$
+
+### Cálculos
+
+```{r}
+# Frequências Relativas
+freq_relativa<-prop.table(table(dados$PLAY))
+freq_relativa
+
+# Funcão naiveBayes()
+x <- dados[,c(1,3)]
+y <- dados[,6]
+
+library(e1071)
+nb_Play <- naiveBayes(x, y)
+nb_Play
+```
+
+```{r}
+# Probabilidades Conhecidas
+p_Play<-0.6428571 
+p_Dont<-0.3571429
+
+# Probabilidades Condicionadas dos Preditores (intra-classes) 
+# P(sunny|Play)
+p_sunny_Play <- 0.2222222 
+
+# P(not windy|Play) 
+p_notw_Play <- 0.6666667 
+
+# P(sunny|Don't Play) 
+p_sunny_Dont <- 0.6
+
+# P(not windy|Don't Play)
+p_notw_Dont <- 0.4
+
+# P(Play |Sunny, Not Windy) proporcional a P(Sunny|Play) * P(Not Windy|Play) * P(Play)
+# Deve-se à independecia dos preditores
+(p_play <- p_sunny_Play * p_notw_Play * p_Play)
+
+# P(Don't Play | Sunny, Not Windy) proporcional a P(Sunny|Don't Play)*P(Not Windy|Don 't Play)*P(Don't Play)
+(p_dont <- p_sunny_Dont*p_notw_Dont*p_Dont) 
+
+# P(Play | Sunny, Not Windy) - Para que a soma dos dois dê 1, uma vez que são complementares
+# Fazemos uma Normalização
+p_play/(p_play+p_dont)
+
+# P(Don't Play | Sunny, Not Windy) - Para que a soma dos dois dê 1, uma vez que são complementares
+p_dont/(p_play+p_dont)
+```
+

@@ -1,0 +1,336 @@
+---
+title: "MAS | Aula Prática 9 - Regressão com CART"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Exemplo de classificação sobre data set `Boston`
+
+- Margarida G. M. S. Cardoso
+- 14 de março, 2023
+
+# PL9 Goal:
+
+\textcolor{lightgray}{The goal is to implement a regression task to predict ***medv*** in the Boston data set (using the predictors available) using a regression tree.}
+
+- Implementar uma tarefa de regressão para prever ***medv*** no conjunto de dados de Boston (usando os preditores disponíveis) usando uma árvore de regressão.
+
+```{r}
+# Bibliotecas
+rm(list=ls(all=TRUE)) # First remove everything!
+
+library(MASS)       # with Boston data set
+library(tree)
+library(Metrics)    # metrics for evaluation of results
+```
+
+
+\newpage
+
+# 1) The `Boston` data set with medv initial deviance
+
+The Boston data set records median house values (medv) for 506 neighborhoods around Boston. 
+
+### TARGET: 
+
+> ***medv:*** median house value 
+
+### PREDICTORS: 
+
+- **crim:** per capita crime rate by town 
+- **zn:** proportion of residential land zoned for lots over 25,000 sq 
+- **indus:** proportion of non-retail business acres per town 
+- **chas:** Charles River dummy variable (= 1 if tract bounds river; 0 otherwise) 
+- **nox:** nitric oxides concentration (parts per 10 million) 
+- **rm:** average number of rooms per dwelling 
+- **age:** proportion of owner-occupied units built prior to 1940 
+- **dis:** weighted distances to five Boston employment centres 
+- **rad:** index of accessibility to radial highways 
+- **tax:** full-value property-tax rate per $10,000 
+- **pratio:** pupil-teacher ratio by town
+
+
+```{r}
+data(Boston) 
+dim(Boston)
+
+Boston$chas <- as.factor(Boston$chas)
+knitr::kable(summary(Boston[,1:7]))
+knitr::kable(summary(Boston[,8:14]))
+attach(Boston)
+
+#initial deviance:
+sum((medv-mean(medv))^2)
+```
+
+\newpage
+
+# 2) Regression tree for medv with 2 predictors (1 metric and 1 nominal)
+
+## 2.a)	rtree.Boston2
+
+
+```{r}
+# NOTE 1: glm function (used to implement Logistic regression) automatically discards missing values 
+#?tree get to know function tree
+rtree.Boston2 <-tree(medv~chas+dis ,data=Boston,
+control=tree.control(nrow(Boston), 
+                     mincut = 5,         # Min de obs. para o nó filho 
+                     minsize = 10,       # Min de obs. para o nó pai
+                     mindev = 0.01       # A deviance não pode descrescer menos de 1 %
+                     ), split = "deviance")
+
+#The within-node deviance must be at least mindev=0.01 times that of the root node for the node to be split.
+rtree.Boston2
+summary(rtree.Boston2)
+```
+
+
+$$Residual Mean Deviance = Residual Mean / (nº obs - nº de nós folha)$$
+
+## 2.b)	rtree.Boston2 plots
+
+```{r}
+plot(rtree.Boston2) 
+text(rtree.Boston2,pretty =0)
+title(main = "Boston medv regression tree with 2 predictors")
+```
+
+## 2.c)	rtree.Boston2 performance
+
+```{r}
+pred.rtree.Boston2<-predict(rtree.Boston2, Boston)
+
+#calculate Final deviance
+sum((pred.rtree.Boston2-medv)^2)
+
+#or
+deviance(rtree.Boston2)
+
+#calculate R-squared
+(rsq.rtree.Boston2<-1-sum((medv-pred.rtree.Boston2)^2)/sum((medv-mean(medv))^2))
+```
+
+\newpage
+
+# 3)	Large regression tree with all predictors available
+
+## 3.a)	rtree_large.Boston
+
+```{r}
+rtree.Boston_large <-tree(medv~. ,
+                          data=Boston,
+                          control=tree.control(nrow(Boston),
+                                               mincut = 1, 
+                                               minsize = 2, 
+                                               mindev = 0.001), 
+                          split = "deviance")
+
+summary(rtree.Boston_large) 
+
+#Deviance
+deviance(rtree.Boston_large) 
+
+#calculate R-squared
+pred.rtree.Boston_large<-predict(rtree.Boston_large, Boston)
+
+(rsq.rtree.Boston_large<-1-sum((medv-pred.rtree.Boston_large)^2)/sum((medv-mean(medv))^2))
+```
+
+## 3.b)	Cost-complexity Pruning of rtree_large.Boston
+
+### 3.b.1)	Obtain sequence of prunned trees
+```{r}
+#?prune.tree to get to know this function
+# The cost-complexity parameter k if missing is determined algorithmicall y.
+# If it is supplied and is a scalar, a subtree is returned # that minimizes the cost-complexity measure for that k. 
+seq_rtree.Boston<-prune.tree(rtree.Boston_large) 
+plot(seq_rtree.Boston$size,seq_rtree.Boston$dev,pch =20)
+lines(seq_rtree.Boston$size,seq_rtree.Boston$dev, col = "red")
+```
+
+
+### 3.b.2)	Obtain a specific prunned tree (with size “best”)
+
+```{r}
+# Escolhemos o 12 por observação do gráfico, mas é subjetivo
+rtree_pru.Boston<-prune.tree(rtree.Boston_large, best=12 )
+summary(rtree_pru.Boston)
+
+deviance (rtree_pru.Boston)
+
+plot(rtree_pru.Boston) 
+text(rtree_pru.Boston, pretty =0)
+title(main = "Boston medv prunned regression tree (all predictors)")
+#the following graphic was copied from the RStudio: Notebook output
+```
+
+
+\newpage
+
+# Exercícios
+
+\textcolor{lightgray}{**EXERCISE 1:** Present and summarize results obtained for regression with ***medv*** target (linear regression and trees)}
+
+- Apresentar e resumir os resultados obtidos para regressão com o alvo ***medv*** (regressão linear e árvores)
+
+---
+
+\textcolor{lightgray}{**EXERCISE 2:** Repeat `EXERCISE 1` considering training and test sets}
+
+- Repetir `EXERCÍCIO 1` considerando conjuntos de treino e teste
+
+### Exercícios 1 e 2
+
+```{r}
+###############################################
+# Train/Test Split
+###############################################
+data(Boston)
+
+is.numeric(Boston$chas)# which suits Linear Regression and KN
+(round(cor(Boston),3))
+
+# lstat has the highest corr. with medv
+# since there are no NA we don't need na.omit (Boston)
+set.seed (777)
+ind_train <- sample(nrow(Boston), .65*nrow(Boston))
+Boston_train <- Boston[ind_train,]
+head(Boston_train)
+Boston_test <- Boston[-ind_train,]
+
+# # which suits Linear Regression and KN
+normalize_s <- function (x) {
+  return ((x -mean (x)) / sd(x))}# number of standard deviations
+
+# all standardized var. have zero mean and unit variance
+Boston_train_s<-Boston_train
+Boston_train_s [,1:13]<-sapply(Boston_train[,1:13], normalize_s)
+
+Boston_test_s<-Boston_test
+Boston_test_s[,1:13]<-sapply(Boston_test[,1:13],normalize_s)
+```
+
+```{r}
+###############################################
+# Linear Regression with two non-correlated and promising predictors
+# (standardization does not change predictive capacity 
+# BUT the coefficients interpretation change)
+###############################################
+
+# analysis on training set
+lm.Boston <- lm(medv~lstat+ptratio ,data =Boston_train)
+summary (lm.Boston)
+(RSQ_lm_train <- summary(lm.Boston)$r.squared)
+
+# analysis on test set
+pred.lm_test<-predict(lm.Boston, Boston_test)
+# Residual Sum of Squares (RSS)
+(RSQ_lm_test <-1-sse(Boston_test$medv, pred.lm_test)/sse(Boston_test$medv, mean(Boston_test$medv)))
+# results between train and test are consistent
+# around 60% of target variation is explained by linear regression model based
+```
+
+```{r}
+###############################################
+# KNN with predictors lstat and ptratio (standardization is important!!!!!!)
+###############################################
+library(FNN)
+
+# analysis on training set (with hold-one-out cross-validation)
+k.RSQ<-matrix (NA, 25,2)
+
+for (i in 1:25){
+  knn.Boston_k <- knn.reg(Boston_train_s[,c(11,13)], y = Boston_train_s$medv, k=i)
+  k.RSQ[i ,1]<-i 
+  k.RSQ[i, 2] <- 1 - sse(knn.Boston_k$pred, Boston_train_s$medv) / sse(Boston_train_s$medv, mean(Boston_train_s$medv))
+}
+                                                        
+(k.RSQ_sort<-k.RSQ[order(k.RSQ[,2],decreasing=TRUE),])
+
+
+## use kNN with "best" k
+knn.Boston_k <- knn.reg(Boston_train_s[, c(11, 13)], y=Boston_train_s$medv, k=4) 
+(RSQ_knn_train.cv1<-1-sse( knn.Boston_k$pred, Boston_train_s$medv)/sse(Boston_train_s$medv, mean(Boston_train_s$medv)))
+
+# analysis on test set with the "best" k based on RSQ on training sett
+## use KNN with "best"
+K=4
+knn.Boston_k <-knn.reg(Boston_train_s[,c(11,13)], Boston_test_s[,c(11,13)],y = Boston_train_s$medv, k=4)
+(RSQ_knn_test<-1-sse(knn.Boston_k$pred, Boston_test_s$medv)/ 
+    sse(Boston_test_s$medv, mean(Boston_test_s$medv)))
+
+## around 66.4% of target variation is explained by 5-nn based on Istat and
+```
+
+```{r}
+###############################################
+# Tree (no standardization is needed)
+###############################################
+
+var(Boston_train$med)*nrow(Boston_train)
+
+# "chas" can be used as a factor
+Boston$chas<-as.factor(Boston$chas)
+summary(Boston)
+
+
+# Start building a large tree
+rtree_large<-tree(medv~. , data=Boston_train,
+                  control= tree.control(nrow(Boston_train), mincut = 1,
+                                        minsize=2, mindev = 0.0001), 
+                  split ="deviance")
+
+summary (rtree_large)
+
+# use cost-complexity prunning to select a good tree
+seq_rtree<-prune.tree(rtree_large)
+str(seq_rtree)
+
+# use graphic first
+total_dev_train <- sum((Boston_train$medv-mean(Boston_train$medv))^2)
+plot(seq_rtree$size, (1-seq_rtree$dev/total_dev_train) , type = "b",
+      xlab ='Tree Size', ylab = "RSO")
+
+# sort by decreasing RSQ (no need...)
+length(seq_rtree$size)
+
+pr.RSQ<-matrix (NA, 116,2)
+pr.RSQ[,1]<-seq_rtree$size
+pr.RSQ[,2] <-(1-seq_rtree$dev/total_dev_train)
+(pr.RSQ_sort<-pr.RSQ[order(pr.RSQ[, 2], decreasing=TRUE) ,])[1:3,]
+
+#Try to specify which size is "best"
+rtree.Boston_train <- prune.tree(rtree_large, best=18 )
+
+summary(rtree.Boston_train)
+rtree.Boston_train
+
+(RSQ_tree_train<-1-deviance(rtree.Boston_train)/total_dev_train)
+
+# performance on test set
+pred_rtree_test<-predict(rtree.Boston_train , Boston_test)
+total_dev_test<-sum((Boston_test$med-mean (Boston_test$medv))^2)
+(RSQ_tree_test<-1-sum((Boston_test$medv-pred_rtree_test)^2)/total_dev_train)
+
+# 77.7% of target variation is explained by tree with 18 leafs bas
+```
+  
+  
+```{r}
+# Summary of results obtained
+results <- data.frame(
+  Model = c("Linear Regression", "KNN", "Decision Tree"),
+  Train_RSQ = c(RSQ_lm_train, RSQ_knn_train.cv1, RSQ_tree_train),
+  Test_RSQ = c(RSQ_lm_test, RSQ_knn_test, RSQ_tree_test)
+)
+
+# Format results as table in Markdown
+knitr::kable(results)
+```

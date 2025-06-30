@@ -1,0 +1,69 @@
+---
+title: "Quiz5"
+author: "André Silvestre Nº104532 CDB1"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Começamos por importar e observar um sumário dos dados.
+
+```{r}
+# Import da Base de Dados
+dados <- read.csv("Play_complete.csv",header=TRUE, dec=".", stringsAsFactors = TRUE)
+summary(dados)
+```
+
+---
+
+\newpage
+
+## Enunciado
+
+Considere a BD Play.
+
+Calcule a distância Euclideana entre as obs. 1 e 11 e as obs. 1 e 12 do data set Play, considerando “humidity” e “temperature”, antes e depois de normalização “0-1”, e responda a Quiz online
+
+
+---
+
+## Resolução
+
+Para calcular a distância Euclidiana entre duas observações no conjunto de dados, precisamos usar a fórmula:
+
+$$d(x,y) = \sqrt{\sum_{i=1}^{n} (x_i - y_i)^2}$$
+
+Onde $x$ e $y$ são as duas observações que estamos comparando e $n$ é o número de variáveis que estamos considerando na comparação.
+
+Primeiro, vamos carregar o conjunto de dados Play e selecionar as observações 1, 11 e 12 e as variáveis "humidity" e "temperature".
+
+```{r}
+# Selecionando as observações 1, 11 e 12 e as variáveis "humidity" e "temperature"
+subset <- dados[c("HUMIDITY", "TEMPERATURE")]
+subset
+
+# Calculando a distância Euclidiana antes da normalização
+dist(subset)
+```
+
+
+Agora, vamos normalizar os dados para que todas as variáveis estejam na escala de 0 a 1. Podemos fazer isso usando a fórmula:
+
+$$x_{norm} = \frac{x - x_{min}}{x_{max} - x_{min}}$$
+
+Onde $x$ é o valor original da variável, $x_{min}$ é o valor mínimo da variável e $x_{max}$ é o valor máximo da variável.
+
+```{r}
+# Normalizando os dados
+normalize_minmax <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
+}
+valores_normalizados <- normalize_minmax(subset)
+
+# Calculando a distância Euclidiana após a normalização
+dist_after <- dist(valores_normalizados)
+dist_after
+```

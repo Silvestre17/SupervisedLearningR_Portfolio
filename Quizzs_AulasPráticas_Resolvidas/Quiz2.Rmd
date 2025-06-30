@@ -1,0 +1,59 @@
+---
+title: "Quiz2"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  pdf_document: default
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Começamos por importar e observar um sumário dos dados.
+
+```{r}
+# Import da Base de Dados
+dados <- read.csv("Play_complete.csv", stringsAsFactors = TRUE)
+summary(dados)
+```
+
+---
+
+## Cálculo da Variância
+
+### Fórmula
+
+$$S^2=\frac{\sum_{n=1}^N\left(y_i-\bar{y}\right)^2}{n}$$
+
+### Cálculo
+
+```{r}
+
+# Cálculo da Variância
+n <- length(dados$PLAY_DURATION)
+media <- mean(dados$PLAY_DURATION)
+variancia <- (sum((dados$PLAY_DURATION - media)^2))/(n)
+round(variancia,2)
+```
+
+---
+
+## Cálculo da Deviance
+
+### Fórmula
+
+$$ DEV^{\text {met }}=\sum_{n=1}^N\left(y_i-\bar{y}\right)^2$$
+
+### Cálculo
+
+```{r}
+# Cálculo da Deviance
+deviance <- sum((dados$PLAY_DURATION - media)^2)
+round(deviance,2)
+```
+
+```{r}
+cat("A variância é de",round(variancia,2)," e a deviance é de" ,round(deviance,2))
+```
+

@@ -1,0 +1,233 @@
+--- 
+title: "MAS: Exame 1ª Época - Parte II (Prática do R)"
+author: "André Filipe Gomes Silvestre | Nº104532"
+date: "28 de março, 2023"
+output: word_document
+---
+
+# Nota:
+Deve efetuar todos os Save com "Save with encoding UTF-8" de modo a manter palavras acentuadas e caracteres especiais**
+
+# Base de dados water_potability
+A base de dados water_potability é composta por 2011 observações e é definida pelas seguintes variáveis:
+✓ ph: indicador de acidez/alcalinidade da água
+✓ Hardness: dureza da água
+✓ Solids: total de sólidos dissolvidos
+✓ Chloramines: nível de desinfetantes presentes na água
+✓ Sulfates: nível de sulfato na água
+✓ Conductivity: grau de condutividade elétrica da água
+✓ Organic_carbon: quantidade de carbono orgânicos da água
+✓ Trihalomethanes: quantidade de químicos THMs encontrados na água
+✓ Turbidity: turbidez da água
+✓ Potability: assume o valor 1 se a água for potável, caso contrário assume o valor 0
+
+
+```{r message=FALSE, warning=FALSE}
+# Remover tudo!
+rm(list=ls(all=TRUE))
+
+# Incluir as libraries de que necessita
+library(MASS)        # The MASS library contains the Boston data set 
+library(Metrics)     # To help calculating metrics
+library(ggplot2)     # To provide graphics
+library(lsr)         # For ETA and Cramer's V measure of association
+library(caret)       # Cross-validation + Metrics for classification
+library(e1071)       # For classification with Naïve Bayes
+library(FNN)         # Implementing KNN - K-Nearest Neighbour
+library(car)         # To verify multicolinearity
+library(psych)       # For some descriptives
+library(nnet)        # For Multinomial Logistic Regression
+library(knitr)       # To pretty outputs
+library(tree)        # For Classification Tree
+```
+
+\newpage
+
+# 1.	Leitura dos dados wat_pot e análise preliminar dos mesmos  
+
+## 1.1) Leitura dos dados usando wat_pot<-read.csv("water_potability.csv", header=TRUE, stringsAsFactors = TRUE, dec=".", sep=",").Nota: verifique sep no ficheiro de origem.  
+
+```{r}
+# Leitura do dataset
+wat_pot<-read.csv("water_potability.csv", header=TRUE, stringsAsFactors = TRUE, dec=".", sep=",")
+
+# Dimensão do dataset
+dim(wat_pot)
+```
+
+## 1.2) [1 valor] Apresentação de head(wat_pot) e apresentação da tabela de frequências relativas da variável Potability.
+
+```{r}
+# Definir a variável Potability como factor
+wat_pot$Potability<-factor(wat_pot$Potability,levels = c(0,1), labels = c("No", "Yes"))
+
+# Primeiras observações da base de dados
+head(wat_pot)
+
+# Tabela de frequências relativas da variável Potability
+prop.table(table(wat_pot$Potability))
+```
+
+## 1.3)[1 valor] Realização de summary dos dados wat_pot e apresentação, para as variáveis Hardness, Chloramines, Conductivity e Trihalomethanes, dos valores mínimo, máximo, média e desvio padrão.
+
+```{r}
+# Summary dos dados wat_pot
+summary(wat_pot)
+
+# Valores mínimo, máximo, média e desvio padrão para as variáveis Hardness, Chloramines, Conductivity e Trihalomethanes
+describe(wat_pot[,c("Hardness", "Chloramines", "Conductivity", "Trihalomethanes")])[c(8,9,3,4)]
+```
+
+## 1.4) [1 valor] Divisão dos dados em amostra de treino (70%) e de teste (30%) usando set.seed(434) e apresentação de summary e tabela de frequências relativas da variável Potability em cada amostra.
+
+```{r}
+# Definir o set.seed para permitir reprodutibilidade dos resultados
+set.seed(434)
+
+# Divisão em Conjunto Treino/Teste (70/30)
+ind_train <- sample(nrow(wat_pot),0.7*nrow(wat_pot)) 
+
+# Conjunto Treino (wat_pot_train)
+wat_pot_train <- wat_pot[ind_train,] 
+paste("O Conjunto de Treino tem", nrow(wat_pot_train),"observações.")
+summary(wat_pot_train)
+
+# Tabela de frequências relativas da variável Potability - conjunto treino
+prop.table(table(wat_pot_train$Potability))
+
+# Conjunto Teste (wat_pot_test)
+wat_pot_test <- wat_pot[-ind_train,] 
+paste("O Conjunto de Teste tem", nrow(wat_pot_test),"observações.")
+summary(wat_pot_test)
+
+# Tabela de frequências relativas da variável Potability - conjunto teste
+prop.table(table(wat_pot_test$Potability))
+```
+
+## 1.5) [1 valor] Completação das frases seguintes em comentário do script: 
+
+```{r}
+# Os dados wat_pot_train são compostos por ________ observações e por _______ variáveis métricas; neste conjunto, a média da variável ph é  ________ enquanto a mediana de Sulfate é ________.
+
+# 1 - 1407      nrow()
+# 2 - 9         ncol(wat_pot_train[, sapply(wat_pot_train, is.numeric)])
+# 3 - 7.12434   mean(wat_pot_train$ph)`
+# 4 - 331.8346  median(wat_pot_train$Sulfate)
+```
+
+Os dados wat_pot_train são compostos por **`r nrow(wat_pot_train)`** observações e por **`r ncol(wat_pot_train[, sapply(wat_pot_train, is.numeric)])`** variáveis métricas; neste conjunto, a média da variável ph é  **`r mean(wat_pot_train$ph)`** enquanto a mediana de Sulfate é **`r median(wat_pot_train$Sulfate)`**.
+
+
+\newpage
+
+
+# 2. Aprendizagem, sobre a amostra de treino, do modelo de Regressão Logística, baseado nos preditores Solids and Turbidity, para prever Potability e avaliação do seu desempenho.
+
+## 2.1) [2 valores] Determine a associação entre os preditores e o alvo.
+
+```{r}
+# Associação entre o target categórico e os preditores métricos Solids e Turbidity
+eta<- matrix(0,2,1)
+rownames(eta)<-colnames(wat_pot_train[,c(3,9)]) 
+
+# Função Eta_ mede a associação (preditores, target)
+Eta_<-function(y,x){ 
+  freqk<-as.vector(table(x)) 
+  l<-nlevels(x) 
+  m<-rep(NA, l) 
+  qual<-as.numeric(x) 
+  for (k in 1:l) {m[k]<-mean(y[qual == k])}
+  return(sqrt(sum(freqk*(m-mean(y))^2)/sum((y-mean(y))^2))) 
+} 
+
+eta[1] <- Eta_(wat_pot_train$Solids,wat_pot_train$Potability)
+eta[2] <- Eta_(wat_pot_train$Turbidity,wat_pot_train$Potability)
+eta
+```
+
+## 2.2) [2.5 valores] Obtenção do modelo e das correspondentes estimativas de Potability sobre amostra de teste.
+
+```{r}
+# Modelo da Regressão Logística
+rlog.Potability <- glm(Potability ~ Solids+Turbidity, 
+                       data=wat_pot_train,
+                       family=binomial)
+summary(rlog.Potability)
+
+# Obtendo as estimativas de Potability sobre amostra de teste
+rlog.pred_test<-round(predict(rlog.Potability, wat_pot_test, type="response"))
+```
+
+
+## 2.3) [2.5 valores] Apresentação da Confusion matrix sobre amostra de teste e da métrica accuracy correspondente.
+
+```{r}
+# Confusion Matrix sobre amostra de teste
+(confusion_matrix <- table(wat_pot_test$Potability, factor(rlog.pred_test, levels=c(0,1), labels=c("No", "Yes"))))
+
+# Cálculo da Accuracy
+(accuracy <- sum(diag(confusion_matrix))/sum(confusion_matrix))
+```
+## 2.4) [1 valor] Completação das frases seguintes em comentário do script: 
+
+```{r}
+# A Residual Deviance do modelo de Regressão Logística é ________; no conjunto teste, a proporção de observações de água não potável corretamente classificadas é _________; a probabilidade da última observação do conjunto de teste se referir a água potável, estimada pelo modelo, é ________.
+
+# 1 - 1888
+# 2 - 353
+# 3 - 0
+```
+
+A Residual Deviance do modelo de Regressão Logística é **`r round(rlog.Potability$deviance,1)`**; no conjunto teste, a proporção de observações de água não potável corretamente classificadas é **353**; a probabilidade da última observação do conjunto de teste se referir a água potável, estimada pelo modelo, é **0**.
+
+\newpage
+
+# 3. Aprendizagem, sobre a amostra de treino, de uma Árvore de Regressão para prever Conductivity e avaliação do seu desempenho
+
+## 3.1) [2.5 valores] Obtenção do modelo, sobre a amostra de treino, sem utilizar poda, considerando os preditores métricos e mindev=0.006; summary da árvore correspondente.
+
+```{r}
+# Modelo em Árvore (preditores métricos e mindev=0.006)
+rtree_large <-tree(Conductivity~ ph+Hardness+Solids+Chloramines+Sulfate+ Organic_carbon+Trihalomethanes+Turbidity,
+                   data=wat_pot_train, 
+                   control=tree.control(nrow(wat_pot_train),
+                                        mincut = 1, 
+                                        minsize = 2, 
+                                        mindev = 0.006), 
+                   split = "deviance") 
+
+# Summary do Modelo em Árvore
+summary(rtree_large)
+rtree_large
+```
+
+## 3.2) [2.5 valores] Estimação de Conductivity sobre amostra de teste, a partir da árvore obtida, e apresentação das estimativas correspondentes às 10 primeiras observações desta amostra.
+
+```{r}
+# Estimação de Conductivity sobre amostra de teste
+pred.rtree <- predict(rtree_large, wat_pot_test)
+
+
+# Estimativas correspondentes às 10 primeiras observações da amostra de teste
+head(pred.rtree, 10) # OU pred.rtree[1:10]
+```
+
+## 3.3) [2 valores] Apresentação do valor da métrica RMSE (Square Root of Mean Squared Error) associado ao modelo aplicado sobre a amostra de teste.
+
+```{r}
+# Cálculo do RMSE (Square Root of Mean Squared Error)
+residuals <- wat_pot_test$Conductivity - pred.rtree
+(rmse <- sqrt(mean(residuals^2)))
+```
+
+## 3.4) [1 valor] Completação das frases seguintes em comentário do script: 
+
+```{r}
+# A Árvore de Regressão é constituída por  ________ nós folha;  a Residual Deviance associada ao modelo sobre o conjunto teste é ______________; o erro quadrático de previsão, relativo a Conductivity, para a primeira observação do conjunto teste é ______________ residuals[1]^2.
+
+# 1 - 3
+# 2 - 8811000 
+# 3 - 611.071
+```
+
+A Árvore de Regressão é constituída por  **3** nós folha;  a Residual Deviance associada ao modelo sobre o conjunto teste é **8811000**; o erro quadrático de previsão, relativo a Conductivity, para a primeira observação do conjunto teste é **611.071**

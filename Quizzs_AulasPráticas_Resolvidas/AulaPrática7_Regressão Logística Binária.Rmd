@@ -1,0 +1,275 @@
+---
+title: "MAS | Aula Prática 7 - Regressão Logística"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Exemplo de classificação sobre data set `Wholesale`
+
+- Margarida G. M. S. Cardoso
+- 3 de março, 2023
+
+# PL7 Goal:
+
+\textcolor{lightgray}{To use the Logistic Regression to predict Channel (Horeca or Retail) in the Wholesale data set.}
+
+- Utilizar a Regressão Logística para prever o Canal (Horeca ou Retalho) no conjunto de dados grossista.
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# Bibliotecas
+rm(list=ls(all=TRUE)) # First remove everything!
+
+library(car)          # to verify multicolinearity
+library(lsr)          # for eta and Cramer's V measure of association
+library(psych)
+```
+
+
+# 1) The `Wholesale` data set
+
+## 1.1)	Information on the data set and reading the data set from the UCI repository
+
+https://archive.ics.uci.edu/ml/datasets/wholesale+customers
+
+- The data set refers to 440 clients of a wholesale distributor.It includes the annual spending in monetary units (m.u.) on diverse product categories
+
+### TARGET: 
+
+> **Channel:** Horeca (Hotel/Restaurant/Coffee) or Retail (Nominal)
+
+### PREDICTORS: 
+
+- **Region** - Lisbon, Oporto or Other (Nominal)
+- **Fresh:** annual spending (m.u.) on fresh products (Continuous)
+- **Milk:** annual spending (m.u.) on milk products (Continuous)
+- **Grocery:** annual spending (m.u.) on grocery products (Continuous) 
+- **Frozen:** annual spending (m.u.) on frozen products (Continuous)
+- **Detergents_paper:** annual spending (m.u.) on detergents and paper products (Continuous)
+- **Delicat:** annual spending (m.u.)on on delicatessen products (Continuous)
+
+\newpage
+
+```{r}
+wholesale<-read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/00292/Wholesale%20customers%20data.csv", 
+                    header = TRUE)
+
+# summary(wholesale)
+# names(wholesale)
+
+# Channel is the target variable
+wholesale$Channel <- factor(wholesale$Channel, 
+                            levels = c(1,2), 
+                            labels = c("Horeca", "Retail"))
+
+# Region is the nominal predictor
+wholesale$Region<- factor(wholesale$Region, 
+                          levels = c(1,2,3), 
+                          labels = c("Lisbon", "Oporto", "Other"))
+
+# verify there are no missings
+sum(is.na(wholesale)) 
+
+# Wholesale descriptive statistics
+# qualitative predictior
+table(wholesale[,2])
+
+# describe quantitative predictores with min, man, mean, sd and skewness
+d <- describe(wholesale[,3:8])
+str(d)
+
+knitr::kable(d[c(8,9,3,4,11)])
+
+# the target 
+table(wholesale[,1])
+
+# Channel initial deviance
+-2*sum(table(wholesale$Channel)*log(table(wholesale$Channel)/nrow(wholesale),exp(1)))
+```
+
+## 1.2)	The target and its relationships with candidate predictors
+
+```{r}
+# relationship with metric predictors
+eta<- matrix(0,6,1)
+rownames(eta)<-colnames(wholesale[,3:8])
+for(i in 3:8){
+  anova_ <- aov (wholesale[,i] ~ Channel, wholesale) # numbers for levels (n ot strings)
+  eta[i-2]<-sqrt(etaSquared(anova_ )[,1])
+}
+
+eta
+
+# relationship with nominal predictor
+cramersV(wholesale$Channel,wholesale$Region)
+```
+
+## 1.3)	Relationships between candidate (metric) predictors
+
+```{r}
+round(cor(wholesale[,3:8]),3)
+```
+
+\newpage
+
+# 2) Logistic Regression applications for wholesale data set
+
+## 2.1)	Logistic regression with constant only (maximum Residual Deviance)
+
+```{r}
+# NOTE 1: glm function (used to implement Logistic regression) automatically 
+# discards missing values 
+contrasts(wholesale$Channel)
+
+# NOTE 2: since reference class is Horeca(0) we will be modelling the probability of Retail(1);
+# therefore, a linear model is adopted for the odds-ratio P(Retail)/P(Horeca)
+rlog.wholesale_0<-glm(Channel ~1, data=wholesale ,family =binomial)
+summary(rlog.wholesale_0)
+
+rlog.wholesale_0$null.deviance # always refers to the model with constant 
+                               # only (with maximum Residual Deviance)
+
+rlog.wholesale_0$deviance # refers to the model with constant only rlog.w holesale_0
+```
+
+## 2.2)	Logistic regression with one metric predictor
+
+```{r}
+(rlog.wholesale_1<-glm(Channel ~ Detergents_Paper, data=wholesale ,family=binomial ))
+
+# coefficient of Detergents_Paper 
+(coef(rlog.wholesale_1) ["Detergents_Paper"]) 
+
+exp(coef (rlog.wholesale_1) ["Detergents_Paper"]) 
+
+# How to interpret? 
+# predicted values/probability of Retail (example for obs.1) 
+rlog.wholesale_1$fitted.values[1]# probability of Retail
+```
+
+Ou usando a fórmula
+
+O Modelo de Regressão Logística ou Modelo Logit resulta de uma relação não linear entre a probabilidade $\pi(x)$ e $x$, modelada pela função sigmóide:
+
+$$
+\widehat{\pi}(x)=\operatorname{sig}(x)=\frac{1}{1+\exp \left\{-\left[\beta_0+\beta x\right]\right\}}=\frac{\exp \left\{\beta_0+\beta x\right\}}{1+\exp \left\{\beta_0+\beta x\right\}}
+$$
+Nota: a combinação linear $\left[\beta_0+\beta x\right]$ pode ser alargada a mais preditores...
+
+```{r}
+(prob_retail_1<-exp(rlog.wholesale_1$coefficients[1]+
+                      rlog.wholesale_1$coefficients[2]*
+                      wholesale[1,"Detergents_Paper"])/
+   (1+exp(rlog.wholesale_1$coefficients[1]+
+            rlog.wholesale_1$coefficients[2]*
+            wholesale[1,"Detergents_Paper"])))
+
+# deviance residuals
+head(wholesale$Channel)
+head(rlog.wholesale_1$fitted.values)
+head(residuals(rlog.wholesale_1,type="deviance"))
+
+# example of calculation of deviance residual for obs.1
+sqrt(2*log(1/rlog.wholesale_1$fitted.values[1],base=exp(1)))
+
+# results from classification
+rlog.pred<-rep (0 ,440)
+rlog.pred[rlog.wholesale_1$fitted.values >.5]=1 
+str(rlog.pred)
+rlog.pred<-factor(rlog.pred, levels=c(0,1), labels=c("Horeca","Retail")) 
+(confusion_mat<-table(wholesale$Channel,rlog.pred))
+(accuracy_<-sum(diag(confusion_mat))/sum(confusion_mat))
+```
+
+## 2.2) Logistic regression with all metric predictors
+
+```{r}
+(rlog.wholesale_p<-glm(Channel~Fresh+Milk+Grocery+Frozen +
+                         Detergents_Paper+ Delicassen, 
+                       data=wholesale,
+                       family=binomial))
+
+# results from classification 	
+rlog.pred<-rep(0 ,440)
+rlog.pred<-round(rlog.wholesale_p$fitted.values ,0)
+rlog.pred<-factor(rlog.pred, levels=c(0,1), labels=c("Horeca","Retail"))
+(confusion_mat<-table(wholesale$Channel,rlog.pred))
+(accuracy_<-sum(diag(confusion_mat))/sum(confusion_mat))
+
+# multicolinearity
+vif(rlog.wholesale_p)
+# no multicolinearity problem
+```
+
+
+\newpage
+
+# Exercícios
+
+\textcolor{lightgray}{**EXERCISE 1:** Do you think is worthwhile to include Region as a predictor?}
+
+- Acha que vale a pena incluir a Região como previsão?
+
+> Não, pq $V de Cramer = 0.0974$, logo tem baixa correlação com a variável alvo.
+
+>> Associação entre *Channel* (nominal) e *Region* (nominal), medida por V de Cramer, tem um valor de 0.099. Trata-se de uma associação muito fraca (valor muito próximo de 0 e claramente inferiror a 0.3) pelo que a **Região** não terá, à partida, interesse como preditor.
+
+---
+
+\textcolor{lightgray}{**EXERCISE 2:** Implement the training and test set approach using a stratified sample on the target (Note : you can resort to Strata from DescTools package). Use one metric predictor. Compare accuracy.}
+
+- Implementar a abordagem de treinamento e conjunto de treino utilizando uma amostra estratificada no alvo (Nota: você pode recorrer a Strata do pacote DescTools). Use um preditor de métrica. Compare a precisão.
+
+> ...
+
+```{r}
+set.seed(777)
+ind_train <- caret::createDataPartition (wholesale$Channel, p = .65,
+                                         list = FALSE, times = 1)
+
+#the random sampling is done within the levels of wholesale$channel
+# in an attempt to balance the class distributions within the splits.
+
+# ?caret::createDataPartition
+
+# Conjunto de Treino
+wholesale_train <- wholesale[ind_train,]
+dim(wholesale_train)
+
+# Conjunto de Teste
+prop.table(table(wholesale_train$Channel))
+wholesale_test <- wholesale[-ind_train,]
+dim(wholesale_test)
+prop.table(table(wholesale_test$Channel))
+
+#Learning the Logistic regression model on the training set
+(rlog.wholesale_1_train<-glm(Channel ~ Detergents_Paper, 
+                             data= wholesale_train ,
+                             family=binomial))
+
+rlog.pred_train<-round(rlog.wholesale_1_train$fitted.values)
+rlog.pred_train<-factor(rlog.pred_train, levels=c(0,1), labels=c("Horeca", "Retail"))
+
+(confusion_mat_train<-table(wholesale_train$Channel,rlog.pred_train))
+(accuracy_train<-sum(diag (confusion_mat_train)) /sum (confusion_mat_train))
+
+#evaluating on test set
+rlog.pred_test<-round(predict(rlog.wholesale_1_train, wholesale_test, type="response"))
+rlog.pred_test<-factor(rlog.pred_test, levels=c(0,1), labels=c("Horeca", "Retail"))
+
+(confusion_mat_test<-table (wholesale_test$Channel, rlog.pred_test))
+(accuracy_test<-sum(diag (confusion_mat_test))/sum(confusion_mat_test))
+```
+
+\textcolor{lightgray}{**EXERCISE 3:** Explore alternative logistic regression models with different sets of predictors. Comment on the results obtained.}
+
+- Explore modelos alternativos de regressão logística com diferentes conjuntos de preditores. Comente os resultados obtidos.
+
+> Temos de ter atenção à correlação entre os preditores e o target e não haver multiclinearidade
+

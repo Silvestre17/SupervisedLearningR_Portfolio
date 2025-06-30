@@ -1,0 +1,15 @@
+OUTLOOK,HUMIDITY,WIND,TEMPERATURE,PLAY_DURATION,PLAY
+sunny,70,windy,24,50,Play
+sunny,90,windy,27,0,Don't Play
+sunny,85,not windy,29,0,Don't Play
+sunny,95,not windy,22,0,Don't Play
+sunny,70,not windy,21,70,Play
+cloudy,90,windy,22,55,Play
+cloudy,86,not windy,28,55,Play
+cloudy,65,windy,18,60,Play
+cloudy,75,not windy,27,75,Play
+ rain,91,windy,22,0,Don't Play
+ rain,70,windy,18,0,Don't Play
+ rain,80,not windy,24,45,Play
+ rain,80,not windy,20,65,Play
+ rain,96,not windy,21,40,Play

@@ -1,0 +1,48 @@
+---
+title: "Quiz8_Resolução"
+author: "André Silvestre"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Começamos por importar e observar um sumário dos dados.
+
+```{r}
+# Import da Base de Dados
+dados <- read.csv("Play_complete.csv",header=TRUE, dec=".", stringsAsFactors = TRUE)
+summary(dados)
+```
+
+---
+
+## Enunciado
+
+Avalie a qualidade do modelo considerado para a previsão de iris Species, recorrendo ao $R^2$ de Hosmer and Lemeshow e ao AIC.
+
+
+---
+
+## Resolução
+
+```{r}
+# Residual Deviance do modelo sem preditores
+residual_deviance_null <- 329.5837
+
+# Residual Deviance do modelo com preditor Sepal.Length
+residual_deviance_model <- 182.0679
+
+# Número de preditores (para o cálculo do AIC)
+p <- 4
+
+# Calcular o R^2 de Hosmer and Lemeshow
+r_squared_hl <- 1 - (residual_deviance_model / residual_deviance_null)
+r_squared_hl
+
+# Calcular o AIC
+aic <- residual_deviance_model + 2 * p
+aic
+```

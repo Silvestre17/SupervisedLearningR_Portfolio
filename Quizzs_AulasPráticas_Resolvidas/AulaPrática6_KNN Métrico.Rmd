@@ -1,0 +1,241 @@
+---
+title: "MAS | Aula Prática 6 - K-Nearest Neighbour"
+author: "André Silvestre Nº104532 CDB1"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Exemplo de regressão sobre dataset `Boston`
+
+- Margarida G. M. S. Cardoso
+- 28 de fevereiro, 2023
+
+# PL6 Goal:
+
+\textcolor{lightgray}{To use the Nearest Neighbour method to predict “medv” in the Boston data set.}
+
+- Para usar o método vizinho mais próximo para prever "medv" no conjunto de dados de Boston.
+
+```{r message=FALSE, warning=FALSE}
+# Bibliotecas
+rm(list=ls(all=TRUE)) # First remove everything!
+
+library(MASS)         # for Boston data set
+library(psych)        # to provide descriptive statistics
+library(ggplot2)      # to provide graphics 
+library(lsr)          # for Eta
+library(e1071)        # classification with Naïve Bayes
+library(Metrics)      # to help calculating metrics
+library(FNN)          # implementing KNN
+```
+
+
+\newpage
+
+# 1) The `Boston` data set
+
+## 1.a) Get the `Boston` dataset
+
+```{r}
+data(Boston) 
+names(Boston)
+dim(Boston)
+```
+
+## 1.b)	Correlations between candidate predictors and the target medv
+
+> `medv` - Preço mediano das habitações em Boston 
+
+```{r}
+corr.Boston<-round(cor(Boston),2)
+corr.Boston[,14]
+
+# the most promising predictors
+(pred_sort<-sort(abs(corr.Boston[-14,14]),decreasing=TRUE))
+
+Boston_prom<-Boston[,c(names(pred_sort[1:5]),"medv")]
+(corr.Boston_prom<-round(cor(Boston_prom),2))
+```
+
+> `lstat` - var. com correlação mais elevada
+
+## 1.c)	Constitute training and test sets
+
+```{r}
+set.seed(777)
+ind_train <- sample(nrow(Boston),.65*nrow(Boston))
+
+# we only consider a subset of "promising" predictors 
+Boston_train <- Boston_prom[ind_train,] 
+head(Boston_train)
+
+#
+Boston_test <- Boston_prom[-ind_train,]
+```
+
+## 1.d)	Standardize training and test sets (Apenas os preditores)
+
+```{r}
+normalize_s <- function(x){
+  return ((x -mean(x)) / sd(x))
+  }
+
+# training set
+Boston_train_s<-Boston_train
+Boston_train_s [,1:5]<-sapply(Boston_train[,1:5],normalize_s)
+
+# test set
+Boston_test_s<-Boston_test
+Boston_test_s [,1:5]<-sapply(Boston_test[,1:5],normalize_s)
+```
+
+\newpage
+
+# 2) k-Nearest Neighbour with no test set
+
+## 2.a)	K-Nearest Neighbour with $K=1$ : the case of “perfect” *overfitting*
+```{r out.width='70%', fig.align='center'}
+knn.Boston <- knn.reg(Boston_train_s[,1:5],Boston_train_s[,1:5], y=Boston_train_s$medv, k=1,algorithm="brute")
+
+#
+plot(y=Boston_train_s$medv, x=knn.Boston$pred, xlab="y", ylab=expression(hat(y)))
+
+#
+(R_Square<-1-sse( knn.Boston$pred,Boston_train_s$medv)/sse(Boston_train_s
+$medv,mean(Boston_train_s$medv)))
+
+```
+
+## 2.b)	K-Nearest Neighbour with $K=1$ but using hold-one-out cross-validation
+
+If test is not supplied, hold-one-out validation will be performed!
+
+```{r out.width='70%', fig.align='center'}
+knn.Boston<- knn.reg(Boston_train_s[,1:5],y=Boston_train_s$medv, k=1,algorithm= "brute")
+
+
+plot(y=Boston_train_s$medv, x=knn.Boston$pred, xlab="y", ylab=expression(hat(y)))
+
+str(knn.Boston)
+
+# R-squared based in hold-one-out crossvalidation
+knn.Boston$R2Pred
+```
+
+\newpage
+
+# 3) Using K-Nearest Neighbour with test set
+
+## 3.a)	Try diverse $K$ for K-Nearest Neighbour (based on the training set) according to R-Squared
+
+
+```{r out.width='70%', fig.align='center'}
+# 
+k.R_square<-matrix(NA,25,2)
+
+for (i in 1:25){
+  knn.Boston_k <- knn.reg(Boston_train_s, y=Boston_train_s$medv, k=i) 
+  k.R_square[i,1]<-i 
+  k.R_square[i,2] <-  1 - sse(knn.Boston_k$pred,Boston_train_s$medv)/
+    sse(Boston_train_s$medv,mean(Boston_train_s$medv)) 
+  }
+
+
+#R-square plot
+plot(k.R_square[,2], type="b", xlab="K Value",ylab="R-square")
+
+(k.R_square_sort<-k.R_square[order(k.R_square[,2],decreasing=TRUE),])
+
+best_k<-k.R_square_sort[1,1]
+```
+
+## 3. b) Regression results, on the training set, according to selected $k$
+
+```{r}
+# 
+knn.Boston_k <- knn.reg(Boston_train_s[,1:5], y=Boston_train_s$medv, k=best_k) 
+
+# R-Squared on training set (one hold-out validation)
+1-sse(knn.Boston_k$pred,Boston_train_s$medv)/sse(Boston_train_s$medv,mean(Boston_train_s$medv))
+```
+
+
+
+## 3.c)	Regression results, on test set, according to selected $k$
+
+```{r}
+knn.Boston_k <- knn.reg(Boston_train_s[,1:5], Boston_test_s[,1:5], y=Boston_train_s$medv, k=best_k)
+
+# R-Squared on test set 
+1-sse( knn.Boston_k$pred,Boston_test_s$medv)/sse(Boston_test_s$medv,mean(Boston_test_s$medv))
+```
+
+
+\newpage
+
+# Exercícios
+
+\textcolor{lightgray}{**EXERCISE 1:** Review the selection of predictors taking into account the correlations between them}
+
+- Reveja a seleção dos preditores tendo em conta as correlações entre eles.
+
+> Escolher preditores que simultanteamente apresentem uma associação elevada com `medv` **MAS** correlação redzida entre eles
+
+**NOTA:** O KNN *apenas* aceita preditores numéricos.
+
+```{r}
+# Excluir preditores que têm correlação com medv inferior a 0.3
+Boston_prom <- Boston[, c(names(pred_sort)[abs(corr.Boston_prom["medv",]) >= 0.3]), "medv"]
+
+
+# Excluir correlações fortes em preditores (multicolineariedade)
+library(caret)
+corr_matrix <- cor(Boston_prom[,-ncol(Boston_prom)])
+high_corr <- findCorrelation(corr_matrix, cutoff = 0.7)
+Boston_prom <- Boston_prom[,-high_corr]
+
+
+# Usar var. sem correlação
+low_corr <- apply(abs(cor(Boston_prom[,-ncol(Boston_prom)])), 2, function(x) all(x < 0.2))
+Boston_prom <- Boston_prom[,c(low_corr, ncol(Boston_prom))]
+
+
+knn.Boston_k <- knn.reg(Boston_train_s, Boston_test_s, y=Boston_train_s$medv, k=best_k)
+
+
+# R-Squared on test set 
+1-sse( knn.Boston_k$pred,Boston_test_s$medv)/sse(Boston_test_s$medv,mean(Boston_test_s$medv))
+```
+
+
+---
+
+\textcolor{lightgray}{**EXERCISE 2:** Repeat the selection of K resorting to alternative regression metrics (suggestion: use library Metrics)}
+
+- Repita a seleção de $K$ recorrendo a métricas alternativas de regressão (sugestão: use library `Metrics`)
+
+```{r}
+library (Metrics)
+
+# MAPE
+k.MAPE <- matrix(NA,25,2)
+
+for (i in 1:25){
+  knn.Boston_k <- knn.reg(Boston_train_s, y=Boston_train_s$medv, k=i) 
+  k.MAPE[i,1] <- i 
+  k.MAPE[i,2] <-  mape(actual = Boston_test_s$medv,
+                           predicted = knn.Boston_k$pred)
+  }
+
+#MAPE
+plot(k.MAPE[,2], type="b", xlab="K Value",ylab="MAPE")
+
+(k.R_square_sort<-k.MAPE[order(k.MAPE[,2],decreasing=TRUE),])
+
+best_k<-k.R_square_sort[1,1]
+best_k
+```
